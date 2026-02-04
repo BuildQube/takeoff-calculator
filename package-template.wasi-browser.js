@@ -56,4 +56,7 @@ const {
   },
 })
 export default __napiModule.exports
+export const State = __napiModule.exports.State
+export const MeasurementType = __napiModule.exports.MeasurementType
 export const plus100 = __napiModule.exports.plus100
+export const Unit = __napiModule.exports.Unit
