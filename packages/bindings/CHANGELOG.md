@@ -1,5 +1,11 @@
 # @build-qube/takeoff-calculator
 
+## 1.3.0
+
+### Minor Changes
+
+- 95003a1: Rename State to TakeoffStateHandler
+
 ## 1.2.6
 
 ### Patch Changes
