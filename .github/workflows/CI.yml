@@ -392,6 +392,7 @@ jobs:
     needs:
       - lint
       - rust-test
+      - build
       # NOTE: Temporarily disabled to speed up CI
       # - test-macOS-windows-binding
       # - test-linux-binding
