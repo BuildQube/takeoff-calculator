@@ -1,5 +1,11 @@
 # @build-qube/takeoff-calculator
 
+## 1.3.4
+
+### Patch Changes
+
+- 89deb23: Reverted CI to use NPM_TOKEN
+
 ## 1.3.3
 
 ### Patch Changes
