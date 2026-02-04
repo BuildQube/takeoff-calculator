@@ -1,5 +1,11 @@
 # @build-qube/takeoff-calculator
 
+## 1.3.1
+
+### Patch Changes
+
+- 14520a2: Added OIDC check
+
 ## 1.3.0
 
 ### Minor Changes
