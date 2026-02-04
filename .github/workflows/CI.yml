@@ -408,6 +408,11 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Ensure latest npm version
+        run: npm install -g npm@latest
+      - name: Check OIDC
+        run: |
+          npm info @build-qube/takeoff-calculator
       - name: Install dependencies
         run: pnpm install
       - name: Download all artifacts
