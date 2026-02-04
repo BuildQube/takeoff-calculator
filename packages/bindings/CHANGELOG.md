@@ -1,5 +1,11 @@
 # @build-qube/takeoff-calculator
 
+## 1.2.3
+
+### Patch Changes
+
+- e8605da: Updated napi version and added lint staging checks
+
 ## 1.2.2
 
 ### Patch Changes
