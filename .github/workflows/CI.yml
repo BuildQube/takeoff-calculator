@@ -409,7 +409,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - name: Ensure latest npm version
-        run: npm install -g npm@latest
+        run: npm update -g npm
       - name: Check OIDC
         run: |
           npm info @build-qube/takeoff-calculator
@@ -433,12 +433,13 @@ jobs:
       #     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Create Release Pull Request
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@c48e67d110a68bc90ccf1098e9646092baacaa87
         with:
           publish: pnpm release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # NPM_TOKEN: ""
+          # NPM_CONFIG_PROVENANCE: true
       # - name: Publish
       #   working-directory: packages/bindings
       #   run: |
