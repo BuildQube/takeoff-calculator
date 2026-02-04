@@ -16,7 +16,8 @@
     "N-API",
     "Rust",
     "node-addon",
-    "node-addon-api"
+    "node-addon-api",
+    "takeoff"
   ],
   "files": [
     "index.d.ts",
