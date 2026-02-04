@@ -1,5 +1,11 @@
 # @build-qube/takeoff-calculator
 
+## 1.2.4
+
+### Patch Changes
+
+- 16af1ed: Removed prepublish from bindings
+
 ## 1.2.3
 
 ### Patch Changes
