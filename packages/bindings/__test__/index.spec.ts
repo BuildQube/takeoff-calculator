@@ -1,8 +1,8 @@
-import test from 'ava'
+import { expect, test } from 'vitest'
 
 import { plus100 } from '../index.js'
 
-test('sync function from native code', (t) => {
+test('sync function from native code', () => {
   const fixture = 42
-  t.is(plus100(fixture), fixture + 100)
+  expect(plus100(fixture)).toEqual(fixture + 100)
 })

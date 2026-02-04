@@ -6,7 +6,7 @@
   "types": "index.d.ts",
   "browser": "browser.js",
   "repository": {
-    "url": "git+ssh://git@github.com/napi-rs/package-template-pnpm.git",
+    "url": "git+ssh://git@github.com:BuildQube/takeoff-calculator.git",
     "type": "git"
   },
   "license": "MIT",
@@ -32,13 +32,9 @@
       "x86_64-pc-windows-msvc",
       "x86_64-unknown-linux-musl",
       "aarch64-unknown-linux-gnu",
-      "i686-pc-windows-msvc",
       "armv7-unknown-linux-gnueabihf",
-      "aarch64-linux-android",
-      "x86_64-unknown-freebsd",
       "aarch64-unknown-linux-musl",
       "aarch64-pc-windows-msvc",
-      "armv7-linux-androideabi",
       "wasm32-wasi-preview1-threads"
     ]
   },
@@ -51,16 +47,20 @@
   },
   "scripts": {
     "artifacts": "napi artifacts",
+    "create-npm-dirs": "napi create-npm-dirs",
     "bench": "node --import @oxc-node/core/register benchmark/bench.ts",
     "build": "napi build --platform --release --no-const-enum",
+    "build:wasm": "napi build --platform --target wasm32-wasip1-threads --release --no-const-enum",
     "build:debug": "napi build --platform --no-const-enum",
-    "format": "run-p format:prettier format:rs format:toml",
+    "format": "run-p format:prettier",
+    "format:fix": "oxlint --fix",
     "format:prettier": "prettier . -w",
     "format:toml": "taplo format",
-    "format:rs": "cargo fmt",
     "lint": "oxlint",
     "prepublishOnly": "napi prepublish -t npm",
-    "test": "ava",
+    "test": "vitest run",
+    "test:local": "vitest run",
+    "test:watch": "vitest watch",
     "version": "napi version"
   },
   "devDependencies": {
@@ -80,7 +80,8 @@
     "oxlint": "^1.14.0",
     "prettier": "^3.6.2",
     "tinybench": "^6.0.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^4.0.15"
   },
   "lint-staged": {
     "*.@(js|ts|tsx)": [
@@ -106,13 +107,5 @@
       "--import",
       "@oxc-node/core/register"
     ]
-  },
-  "prettier": {
-    "printWidth": 120,
-    "semi": false,
-    "trailingComma": "all",
-    "singleQuote": true,
-    "arrowParens": "always"
-  },
-  "packageManager": "pnpm@10.28.2"
+  }
 }

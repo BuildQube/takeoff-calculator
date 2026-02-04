@@ -39,7 +39,7 @@ if (__nodeFs.existsSync(__wasmDebugFilePath)) {
   __wasmFilePath = __wasmDebugFilePath
 } else if (!__nodeFs.existsSync(__wasmFilePath)) {
   try {
-    __wasmFilePath = __nodePath.resolve('@build-qube/takeoff-calculator-wasm32-wasi')
+    __wasmFilePath = require.resolve('@build-qube/takeoff-calculator-wasm32-wasi/takeoff-calculator.wasm32-wasi.wasm')
   } catch {
     throw new Error('Cannot find takeoff-calculator.wasm32-wasi.wasm file, and @build-qube/takeoff-calculator-wasm32-wasi package is not installed.')
   }
