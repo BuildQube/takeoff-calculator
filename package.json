@@ -1,31 +1,45 @@
 {
-    "name": "takeoff-monorepo",
-    "private": true,
-    "packageManager": "pnpm@10.24.0",
-    "scripts": {
-        "dev": "turbo run dev",
-        "build": "turbo run build",
-        "change": "pnpm changeset",
-        "test": "turbo run test",
-        "test:local": "turbo run test:local",
-        "test:rust": "turbo run cargo:test",
-        "test:all": "turbo run cargo:test test:local",
-        "cargo:test": "cargo test",
-        "clean": "git clean -fx",
-        "lint": "turbo run lint",
-        "format": "turbo run format format:toml format:rs format:fix",
-        "bench": "turbo run bench",
-        "format:toml": "taplo format",
-        "format:rs": "cargo fmt",
-        "format:fix": "cargo fix --allow-dirty",
-        "release": "pnpm --filter ./packages/bindings create-npm-dirs && pnpm --filter ./packages/bindings artifacts && ls -R ./packages/bindings/npm && pnpm changeset publish"
-    },
-    "devDependencies": {
-        "@changesets/cli": "^2.29.8",
-        "@taplo/cli": "^0.7.0",
-        "oxlint": "^1.14.0",
-        "prettier": "^3.6.2",
-        "turbo": "^2.0.0"
-    },
-    "version": "0.0.1"
+  "name": "takeoff-monorepo",
+  "private": true,
+  "packageManager": "pnpm@10.24.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "change": "pnpm changeset",
+    "test": "turbo run test",
+    "test:local": "turbo run test:local",
+    "test:rust": "turbo run cargo:test",
+    "test:all": "turbo run cargo:test test:local",
+    "cargo:test": "cargo test",
+    "clean": "git clean -fx",
+    "lint": "turbo run lint",
+    "format": "turbo run format format:toml format:rs format:fix",
+    "bench": "turbo run bench",
+    "format:toml": "taplo format",
+    "format:rs": "cargo fmt",
+    "format:fix": "cargo fix --allow-dirty",
+    "release": "pnpm --filter ./packages/bindings create-npm-dirs && pnpm --filter ./packages/bindings artifacts && ls -R ./packages/bindings/npm && pnpm changeset publish",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8",
+    "@taplo/cli": "^0.7.0",
+    "oxlint": "^1.14.0",
+    "prettier": "^3.6.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.6",
+    "turbo": "^2.0.0"
+  },
+  "lint-staged": {
+    "*.@(js|ts|tsx)": [
+      "oxlint --fix"
+    ],
+    "*.@(js|ts|tsx|yml|yaml|md|json)": [
+      "prettier --write"
+    ],
+    "*.toml": [
+      "taplo format"
+    ]
+  },
+  "version": "0.0.1"
 }
