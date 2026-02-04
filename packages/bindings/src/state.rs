@@ -19,6 +19,15 @@ pub struct State {
 #[napi]
 impl State {
   #[napi(constructor)]
+  /// Creates a new state.
+  ///
+  /// # Arguments
+  ///
+  /// * `options` - The options for the state.
+  ///
+  /// # Returns
+  ///
+  /// * `State` - The new state.
   pub fn new(options: StateOptions) -> Self {
     let pages = options
       .pages

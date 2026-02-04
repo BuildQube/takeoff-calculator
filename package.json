@@ -28,18 +28,7 @@
     "prettier": "^3.6.2",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.6",
-    "turbo": "^2.0.0"
-  },
-  "lint-staged": {
-    "*.@(js|ts|tsx)": [
-      "oxlint --fix"
-    ],
-    "*.@(js|ts|tsx|yml|yaml|md|json)": [
-      "prettier --write"
-    ],
-    "*.toml": [
-      "taplo format"
-    ]
+    "turbo": "^2.8.3"
   },
   "version": "0.0.1"
 }

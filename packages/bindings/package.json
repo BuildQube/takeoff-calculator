@@ -38,7 +38,7 @@
       "armv7-unknown-linux-gnueabihf",
       "aarch64-unknown-linux-musl",
       "aarch64-pc-windows-msvc",
-      "wasm32-wasi-preview1-threads"
+      "wasm32-wasip1-threads"
     ]
   },
   "engines": {
