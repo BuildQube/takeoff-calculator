@@ -60,6 +60,7 @@
     "format:prettier": "prettier . -w",
     "format:toml": "taplo format",
     "lint": "oxlint",
+    "prepublishOnly": "napi prepublish -t npm --no-gh-release",
     "test": "vitest run",
     "test:local": "vitest run",
     "test:watch": "vitest watch",
