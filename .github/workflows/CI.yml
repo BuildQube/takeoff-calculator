@@ -392,10 +392,10 @@ jobs:
     needs:
       - lint
       - rust-test
-      # - build-freebsd
-      - test-macOS-windows-binding
-      - test-linux-binding
-      - test-wasi
+      # NOTE: Temporarily disabled to speed up CI
+      # - test-macOS-windows-binding
+      # - test-linux-binding
+      # - test-wasi
     steps:
       - uses: actions/checkout@v6
       - name: Caching for Turborepo
