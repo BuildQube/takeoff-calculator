@@ -18,6 +18,7 @@ uuid = { workspace = true }
 takeoff_core = { workspace = true }
 dashmap = { version = "6.1.0", features = ["serde"] }
 crossbeam = { version = "0.8.4" }
+anyhow = { workspace = true }
 
 [build-dependencies]
 napi-build = "2"

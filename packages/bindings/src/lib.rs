@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
+pub mod group;
 pub mod measurement;
-pub mod messages;
 pub mod state;
 use napi_derive::napi;
 
