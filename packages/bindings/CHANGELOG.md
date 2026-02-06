@@ -1,5 +1,16 @@
 # @build-qube/takeoff-calculator
 
+## 2.0.0
+
+### Major Changes
+
+- b48e8ca: Initial working version
+
+### Minor Changes
+
+- f73fbb8: Add method to calculate measurement scale
+- 7d6dea6: Major performance bump compared to JS processing
+
 ## 1.3.4
 
 ### Patch Changes
