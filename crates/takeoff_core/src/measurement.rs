@@ -139,9 +139,13 @@ impl Measurement {
       }
       Measurement::Polyline { points, .. } => {
         let mut perimeter = 0.0;
-        for i in 0..points.len() {
-          let j = (i + 1) % points.len();
-          perimeter += points[i].distance_to(&points[j]);
+        // NOTE: This is the correct way to calculate the perimeter of a polyline but we are using the length
+        // for i in 0..points.len() {
+        //   let j = (i + 1) % points.len();
+        //   perimeter += points[i].distance_to(&points[j]);
+        // }
+        for i in 0..points.len() - 1 {
+          perimeter += points[i].distance_to(&points[i + 1]);
         }
         perimeter
       }
@@ -173,5 +177,16 @@ mod tests {
       points: (Point::new(0.0, 0.0), Point::new(100.0, 50.0)),
     };
     assert!(measurement.pixel_perimeter() == 300.0);
+  }
+
+  #[test]
+  fn test_pixel_perimeter_polyline() {
+    let measurement = Measurement::Polyline {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![Point::new(0.0, 0.0), Point::new(1.0, 0.0)],
+    };
+    assert!(measurement.pixel_perimeter() == 1.0);
   }
 }

@@ -49,4 +49,39 @@ describe("TakeoffStateHandler", () => {
       },
     });
   });
+  test("should get measurement length", () => {
+    const state = new TakeoffStateHandler({
+      pages: [],
+      groups: [],
+      measurements: [
+        {
+          id: "1",
+          type: "Polyline",
+          pageId: "1",
+          groupId: "1",
+          points: [
+            { x: 0, y: 0 },
+            { x: 0, y: 1 },
+          ],
+        },
+      ],
+      scales: [
+        {
+          id: "1",
+          type: "Default",
+          pageId: "1",
+          scale: {
+            pixelDistance: 1,
+            realDistance: 1,
+            unit: "Feet",
+          },
+        },
+      ],
+    });
+    const measurement = state.getMeasurement("1");
+    expect(measurement?.rawPerimeter).toEqual(1);
+    const length = measurement?.length;
+    console.log(length?.display("Feet"));
+    expect(length?.display("Feet")).toEqual("1 ft");
+  });
 });

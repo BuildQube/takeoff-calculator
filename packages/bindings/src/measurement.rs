@@ -160,14 +160,17 @@ impl MeasurementWrapper {
     self.recompute_measurements();
   }
 
+  #[napi(getter)]
   pub fn get_scale(&self) -> Option<Scale> {
     self.scale.lock().unwrap().clone()
   }
 
+  #[napi(getter)]
   pub fn id(&self) -> &str {
     self.measurement.id()
   }
 
+  #[napi(getter)]
   pub fn page_id(&self) -> &str {
     self.measurement.page_id()
   }
@@ -177,10 +180,12 @@ impl MeasurementWrapper {
     self.measurement.group_id()
   }
 
+  #[napi(getter)]
   pub fn raw_area(&self) -> f64 {
     self.measurement.pixel_area()
   }
 
+  #[napi(getter)]
   pub fn raw_perimeter(&self) -> f64 {
     self.measurement.pixel_perimeter()
   }
@@ -236,6 +241,21 @@ mod tests {
     assert_eq!(measurement_wrapper.raw_area(), 5000.0);
     assert_eq!(measurement_wrapper.raw_perimeter(), 300.0);
     assert_eq!(measurement_wrapper.convert_area(Unit::Meters), None);
+    assert_eq!(measurement_wrapper.convert_length(Unit::Meters), None);
+  }
+
+  #[test]
+  fn test_pixel_perimeter_polyline() {
+    let measurement = Measurement::Polyline {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![Point::new(0.0, 0.0), Point::new(0.0, 1.0)],
+    };
+    let measurement_wrapper =
+      MeasurementWrapper::new(measurement, Arc::new(TakeoffStateHandler::default()));
+
+    assert_eq!(measurement_wrapper.raw_perimeter(), 1.0);
     assert_eq!(measurement_wrapper.convert_length(Unit::Meters), None);
   }
 }
