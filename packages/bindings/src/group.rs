@@ -101,6 +101,8 @@ impl GroupWrapper {
   //     res
   //   }
 
+  #[napi(getter)]
+  /// Get the id of the group.
   pub fn id(&self) -> &str {
     &self.group.id
   }

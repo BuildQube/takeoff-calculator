@@ -180,6 +180,9 @@ describe("TakeoffStateHandler", () => {
       const groupMeasurements = state.getMeasurementsByGroupId(
         testMeasure!.groupId,
       );
+      for (const measurement of groupMeasurements) {
+        expect(measurement.groupId).toBe(testGroup.id);
+      }
       expect(groupMeasurements.length).toBe(testGroup.count);
       for (const measurement of groupMeasurements) {
         expect(measurement.area).toBeDefined();
