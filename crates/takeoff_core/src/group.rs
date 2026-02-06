@@ -2,7 +2,7 @@ use napi_derive::napi;
 use serde::{Deserialize, Serialize};
 
 #[napi(string_enum)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub enum MeasurementType {
   Area,
   Linear,

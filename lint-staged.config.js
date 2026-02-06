@@ -12,5 +12,8 @@ export default {
     "*.toml": [
         "taplo format"
     ],
-    "*.rs": (_files) => "turbo run format:rs format:fix",
+    "*.rs": (_files) => [
+        "turbo run format:rs format:fix",
+        "cargo clippy --workspace --fix --allow-dirty"
+    ],
 }

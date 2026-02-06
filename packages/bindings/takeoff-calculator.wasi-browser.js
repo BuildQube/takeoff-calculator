@@ -59,11 +59,11 @@ const {
   },
 });
 export default __napiModule.exports;
-export const MeasurementCalculator = __napiModule.exports.MeasurementCalculator;
+export const GroupWrapper = __napiModule.exports.GroupWrapper;
 export const MeasurementWrapper = __napiModule.exports.MeasurementWrapper;
 export const TakeoffStateHandler = __napiModule.exports.TakeoffStateHandler;
 export const plus100 = __napiModule.exports.plus100;
 export const UnitValue = __napiModule.exports.UnitValue;
 export const MeasurementType = __napiModule.exports.MeasurementType;
 export const Unit = __napiModule.exports.Unit;
-export const UnitMagnitude = __napiModule.exports.UnitMagnitude;
+export const UnitValueItemType = __napiModule.exports.UnitValueItemType;

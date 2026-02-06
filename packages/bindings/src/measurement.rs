@@ -1,43 +1,59 @@
+use std::sync::{Arc, Mutex};
+
 use napi_derive::napi;
-use serde::{Deserialize, Serialize};
 use takeoff_core::scale::Scale;
+use takeoff_core::unit::UnitValue;
 use takeoff_core::{measurement::Measurement, unit::Unit};
 use uom::si::f32::{Area, Length};
 
-#[napi(js_name = "MeasurementCalculator")]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+use crate::state::TakeoffStateHandler;
+use anyhow::Result;
+#[napi]
+#[derive(Debug, Clone)]
 pub struct MeasurementWrapper {
   measurement: Measurement,
 
-  scale: Option<Scale>,
-  area: Option<Area>,
-  length: Option<Length>,
+  scale: Arc<Mutex<Option<Scale>>>,
+  area: Arc<Mutex<Option<Area>>>,
+  length: Arc<Mutex<Option<Length>>>,
   points: f64,
+
+  // #[serde(skip)]
+  state: Arc<TakeoffStateHandler>,
 }
 
 #[napi]
 impl MeasurementWrapper {
-  #[napi(constructor)]
-  pub fn new(measurement: Measurement) -> Self {
+  pub fn new(measurement: Measurement, state: Arc<TakeoffStateHandler>) -> Self {
     let points = match measurement.clone() {
       Measurement::Count { .. } => 1,
       Measurement::Polygon { points, .. } => points.len(),
       Measurement::Polyline { points, .. } => points.len(),
-      Measurement::Rectangle { .. } => 2,
+      Measurement::Rectangle { .. } => 4,
     };
     Self {
       measurement,
-      scale: None,
-      area: None,
-      length: None,
+      scale: Arc::new(Mutex::new(None)),
+      area: Arc::new(Mutex::new(None)),
+      length: Arc::new(Mutex::new(None)),
       points: points as f64,
+      state,
     }
   }
 
+  #[napi(getter)]
+  pub fn get_points(&self) -> f64 {
+    self.points
+  }
+
+  pub fn get_count(&self) -> f64 {
+    1.0
+  }
+
   fn calculate_area(&self) -> Option<Area> {
-    if let Some(scale) = self.get_scale() {
+    if let Some(scale) = self.scale.lock().unwrap().as_ref() {
       let scale_ratio = scale.ratio();
-      println!("scale_ratio: {:?}", scale_ratio);
+
       let area = self.raw_area() / (scale_ratio * scale_ratio);
       let res = scale.get_unit().get_area_unit(area as f32);
       return Some(res);
@@ -45,29 +61,38 @@ impl MeasurementWrapper {
     None
   }
 
-  #[napi]
+  #[napi(getter)]
   pub fn get_measurement(&self) -> Measurement {
     self.measurement.clone()
   }
 
-  pub fn get_area(&mut self) -> Option<Area> {
-    if self.area.is_none() {
-      self.area = self.calculate_area();
+  #[napi(getter)]
+  pub fn get_area(&self) -> Option<UnitValue> {
+    if let Ok(Some(area)) = self.get_area_value() {
+      return Some(UnitValue::from_area(area));
     }
-    self.area
+    None
   }
 
-  pub fn calculate_scale(&mut self, scales: Vec<Scale>) -> Option<Scale> {
+  pub fn get_area_value(&self) -> Result<Option<Area>> {
+    let mut area = self.area.lock().unwrap();
+    if area.is_none() {
+      *area = self.calculate_area();
+      Ok(*area)
+    } else {
+      Ok(*area)
+    }
+  }
+
+  pub fn calculate_scale(&self) -> Option<Scale> {
     let mut current_scale: Option<Scale> = None;
-    for scale in scales {
+    for scale in self.state.get_page_scales(self.page_id()) {
       if matches!(scale, Scale::Area { .. }) {
         if scale.is_in_bounding_box(&self.measurement.to_geometry()) {
-          println!("setting scale: {:?}", scale);
           self.set_scale(scale.clone());
           return Some(scale);
         }
       } else {
-        // println!("setting scale: {:?}", scale);
         current_scale = Some(scale.clone());
       }
     }
@@ -86,15 +111,16 @@ impl MeasurementWrapper {
     None
   }
 
-  pub fn get_length(&mut self) -> Option<Length> {
-    if self.length.is_none() {
-      self.length = self.calculate_length();
+  pub fn get_length_value(&self) -> Option<Length> {
+    let mut length = self.length.lock().unwrap();
+    if length.is_none() {
+      *length = self.calculate_length();
     }
-    self.length
+    *length
   }
 
   fn calculate_length(&self) -> Option<Length> {
-    if let Some(scale) = self.get_scale() {
+    if let Some(scale) = self.scale.lock().unwrap().as_ref() {
       let scale_ratio = scale.ratio();
       let length = self.raw_perimeter() / scale_ratio;
       let res = scale.get_unit().get_unit(length as f32);
@@ -111,18 +137,31 @@ impl MeasurementWrapper {
     None
   }
 
-  pub fn recompute_measurements(&mut self) {
-    self.area = self.calculate_area();
-    self.length = self.calculate_length();
+  #[napi(getter)]
+  pub fn get_length(&self) -> Option<UnitValue> {
+    if let Some(length) = self.calculate_length() {
+      return Some(UnitValue::from_length(length));
+    }
+    None
   }
 
-  pub fn set_scale(&mut self, scale: Scale) {
-    self.scale = Some(scale);
+  pub fn recompute_measurements(&self) {
+    let area = self.calculate_area();
+    *self.area.lock().unwrap() = area;
+
+    let length = self.calculate_length();
+    *self.length.lock().unwrap() = length;
+
+    let _ = self.state.compute_group(self.get_group_id());
+  }
+
+  pub fn set_scale(&self, scale: Scale) {
+    *self.scale.lock().unwrap() = Some(scale);
     self.recompute_measurements();
   }
 
-  pub fn get_scale(&self) -> Option<&Scale> {
-    self.scale.as_ref()
+  pub fn get_scale(&self) -> Option<Scale> {
+    self.scale.lock().unwrap().clone()
   }
 
   pub fn id(&self) -> &str {
@@ -133,7 +172,8 @@ impl MeasurementWrapper {
     self.measurement.page_id()
   }
 
-  pub fn group_id(&self) -> &str {
+  #[napi(getter)]
+  pub fn get_group_id(&self) -> &str {
     self.measurement.group_id()
   }
 
@@ -162,7 +202,8 @@ mod tests {
     };
 
     assert!(measurement.pixel_area() == 5000.0);
-    let mut measurement_wrapper = MeasurementWrapper::new(measurement);
+    let measurement_wrapper =
+      MeasurementWrapper::new(measurement, Arc::new(TakeoffStateHandler::default()));
     measurement_wrapper.set_scale(Scale::Default {
       id: "1".to_string(),
       page_id: "1".to_string(),
@@ -173,7 +214,7 @@ mod tests {
       },
     });
     let area = measurement_wrapper.calculate_area().unwrap();
-    println!("area: {:?}", area);
+
     assert_eq!(area.get::<square_meter>(), 2.0);
     assert_eq!(measurement_wrapper.convert_area(Unit::Meters).unwrap(), 2.0);
     assert_eq!(
@@ -190,7 +231,8 @@ mod tests {
       group_id: "1".to_string(),
       points: (Point::new(0.0, 0.0), Point::new(100.0, 50.0)),
     };
-    let measurement_wrapper = MeasurementWrapper::new(measurement);
+    let measurement_wrapper =
+      MeasurementWrapper::new(measurement, Arc::new(TakeoffStateHandler::default()));
     assert_eq!(measurement_wrapper.raw_area(), 5000.0);
     assert_eq!(measurement_wrapper.raw_perimeter(), 300.0);
     assert_eq!(measurement_wrapper.convert_area(Unit::Meters), None);

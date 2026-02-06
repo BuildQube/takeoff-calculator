@@ -227,35 +227,76 @@ impl UnitFormatter {
 //   Length { value: Length },
 // }
 
+// #[napi(discriminant = "type")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum UnitValueItem {
+  Area { value: Area },
+  Length { value: Length },
+}
+
 #[napi(string_enum)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum UnitMagnitude {
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum UnitValueItemType {
   Area,
   Length,
 }
 
 #[napi]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnitValue {
-  area: Option<Area>,
-  length: Option<Length>,
-  pub magnitude: UnitMagnitude,
+  value: UnitValueItem,
 }
 
 #[napi]
 impl UnitValue {
-  pub fn new(value: f32, unit: Unit, magnitude: UnitMagnitude) -> Self {
+  #[napi(constructor)]
+  pub fn new(value: f64, unit: Unit, magnitude: UnitValueItemType) -> Self {
     match magnitude {
-      UnitMagnitude::Area => Self {
-        area: Some(unit.get_area_unit(value)),
-        length: None,
-        magnitude,
+      UnitValueItemType::Area => Self {
+        value: UnitValueItem::Area {
+          value: unit.get_area_unit(value as f32),
+        },
       },
-      UnitMagnitude::Length => Self {
-        area: None,
-        length: Some(unit.get_unit(value)),
-        magnitude,
+      UnitValueItemType::Length => Self {
+        value: UnitValueItem::Length {
+          value: unit.get_unit(value as f32),
+        },
       },
+    }
+  }
+
+  pub fn from_area(value: Area) -> Self {
+    Self {
+      value: UnitValueItem::Area { value },
+    }
+  }
+  pub fn from_length(value: Length) -> Self {
+    Self {
+      value: UnitValueItem::Length { value },
+    }
+  }
+
+  #[napi]
+  pub fn display(&self, unit: Unit) -> String {
+    match self.value {
+      UnitValueItem::Area { value } => UnitFormatter::Area {
+        unit,
+        value: unit.convert_area_to_unit(value),
+      }
+      .format(),
+      UnitValueItem::Length { value } => UnitFormatter::Length {
+        unit,
+        value: unit.convert_length_to_unit(value),
+      }
+      .format(),
+    }
+  }
+
+  #[napi]
+  pub fn get_converted_value(&self, to: Unit) -> f64 {
+    match self.value {
+      UnitValueItem::Area { value } => to.convert_area_to_unit(value) as f64,
+      UnitValueItem::Length { value } => to.convert_length_to_unit(value) as f64,
     }
   }
 }
@@ -293,12 +334,13 @@ mod tests {
 
   #[test]
   fn test_new_unit_value() {
-    let unit_value = UnitValue::new(1.0, Unit::Meters, UnitMagnitude::Length);
+    let unit_value = UnitValue::new(1.0, Unit::Meters, UnitValueItemType::Length);
 
-    assert_eq!(unit_value.length, Some(Length::new::<meter>(1.0)));
-    assert_eq!(unit_value.area, None);
-    let unit_value = UnitValue::new(1.0, Unit::Meters, UnitMagnitude::Area);
-    assert_eq!(unit_value.length, None);
-    assert_eq!(unit_value.area, Some(Area::new::<square_meter>(1.0)));
+    assert_eq!(unit_value.get_converted_value(Unit::Meters), 1.0);
+    assert_eq!(unit_value.display(Unit::Meters), "1 m");
+    let unit_value = UnitValue::new(1.0, Unit::Meters, UnitValueItemType::Area);
+
+    assert_eq!(unit_value.display(Unit::Meters), "1 m²");
+    assert_eq!(unit_value.get_converted_value(Unit::Meters), 1.0);
   }
 }
