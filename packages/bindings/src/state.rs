@@ -182,6 +182,12 @@ impl TakeoffStateHandler {
   /// * `Some(measurement)` - If the measurement was found and updated.
   pub fn upsert_measurement(&self, measurement: Measurement) -> Option<Measurement> {
     let id = measurement.id().to_string();
+
+    if let Some(prev_measurement) = self.measurements.get(&id) {
+      prev_measurement.set_measurement(measurement.clone());
+      return Some(prev_measurement.get_measurement());
+    }
+
     let res = self.measurements.insert(
       measurement.id().to_string(),
       MeasurementWrapper::new(measurement, Arc::new(self.clone())),

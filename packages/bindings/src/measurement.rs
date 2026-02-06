@@ -11,7 +11,7 @@ use anyhow::Result;
 #[napi]
 #[derive(Debug, Clone)]
 pub struct MeasurementWrapper {
-  measurement: Measurement,
+  measurement: Arc<Mutex<Measurement>>,
 
   scale: Arc<Mutex<Option<Scale>>>,
   area: Arc<Mutex<Option<Area>>>,
@@ -32,13 +32,18 @@ impl MeasurementWrapper {
       Measurement::Rectangle { .. } => 4,
     };
     Self {
-      measurement,
+      measurement: Arc::new(Mutex::new(measurement)),
       scale: Arc::new(Mutex::new(None)),
       area: Arc::new(Mutex::new(None)),
       length: Arc::new(Mutex::new(None)),
       points: points as f64,
       state,
     }
+  }
+
+  pub fn set_measurement(&self, measurement: Measurement) {
+    *self.measurement.lock().unwrap() = measurement;
+    self.recompute_measurements();
   }
 
   #[napi(getter)]
@@ -63,7 +68,7 @@ impl MeasurementWrapper {
 
   #[napi(getter)]
   pub fn get_measurement(&self) -> Measurement {
-    self.measurement.clone()
+    self.measurement.lock().unwrap().clone()
   }
 
   #[napi(getter)]
@@ -86,9 +91,9 @@ impl MeasurementWrapper {
 
   pub fn calculate_scale(&self) -> Option<Scale> {
     let mut current_scale: Option<Scale> = None;
-    for scale in self.state.get_page_scales(self.page_id()) {
+    for scale in self.state.get_page_scales(&self.page_id()) {
       if matches!(scale, Scale::Area { .. }) {
-        if scale.is_in_bounding_box(&self.measurement.to_geometry()) {
+        if scale.is_in_bounding_box(&self.measurement.lock().unwrap().to_geometry()) {
           self.set_scale(scale.clone());
           return Some(scale);
         }
@@ -152,7 +157,7 @@ impl MeasurementWrapper {
     let length = self.calculate_length();
     *self.length.lock().unwrap() = length;
 
-    let _ = self.state.compute_group(self.get_group_id());
+    let _ = self.state.compute_group(&self.get_group_id());
   }
 
   pub fn set_scale(&self, scale: Scale) {
@@ -166,28 +171,28 @@ impl MeasurementWrapper {
   }
 
   #[napi(getter)]
-  pub fn id(&self) -> &str {
-    self.measurement.id()
+  pub fn id(&self) -> String {
+    self.measurement.lock().unwrap().id().to_string()
   }
 
   #[napi(getter)]
-  pub fn page_id(&self) -> &str {
-    self.measurement.page_id()
+  pub fn page_id(&self) -> String {
+    self.measurement.lock().unwrap().page_id().to_string()
   }
 
   #[napi(getter)]
-  pub fn get_group_id(&self) -> &str {
-    self.measurement.group_id()
+  pub fn get_group_id(&self) -> String {
+    self.measurement.lock().unwrap().group_id().to_string()
   }
 
   #[napi(getter)]
   pub fn raw_area(&self) -> f64 {
-    self.measurement.pixel_area()
+    self.measurement.lock().unwrap().pixel_area()
   }
 
   #[napi(getter)]
   pub fn raw_perimeter(&self) -> f64 {
-    self.measurement.pixel_perimeter()
+    self.measurement.lock().unwrap().pixel_perimeter()
   }
 }
 
