@@ -36,32 +36,27 @@ impl GroupWrapper {
     res
   }
 
-  fn calculate_area(&self, measurements: &Vec<MeasurementWrapper>) -> Result<Option<Area>> {
+  fn calculate_area(&self, measurements: &[MeasurementWrapper]) -> Result<Option<Area>> {
     // let measurements = self.get_measurements();
     // println!("measurements: {:?}", measurements);
     let area = measurements
       .iter()
-      .map(|measurement| measurement.get_area_value().unwrap_or(None))
-      .filter(|area| area.is_some())
-      .map(|area| area.unwrap())
+      .filter_map(|measurement| measurement.get_area_value().unwrap_or(None))
+      // .filter(|area| area.is_some())
+      // .map(|area| area.unwrap())
       .reduce(|a, b| a + b);
     Ok(area)
   }
 
-  fn calculate_length(&self, measurements: &Vec<MeasurementWrapper>) -> Result<Option<Length>> {
+  fn calculate_length(&self, measurements: &[MeasurementWrapper]) -> Result<Option<Length>> {
     let length = measurements
       .iter()
-      .map(|measurement| {
-        measurement.get_length_value()
-        //   .unwrap_or(Length::new::<meter>(0.0))
-      })
-      .filter(|length| length.is_some())
-      .map(|length| length.unwrap())
+      .filter_map(|measurement| measurement.get_length_value())
       .reduce(|a, b| a + b);
     Ok(length)
   }
 
-  fn calculate_points(&self, measurements: &Vec<MeasurementWrapper>) -> Option<f64> {
+  fn calculate_points(&self, measurements: &[MeasurementWrapper]) -> Option<f64> {
     let points = measurements
       .iter()
       .map(|measurement| measurement.get_points())
@@ -69,7 +64,7 @@ impl GroupWrapper {
 
     points
   }
-  fn calculate_count(&self, measurements: &Vec<MeasurementWrapper>) -> Option<f64> {
+  fn calculate_count(&self, measurements: &[MeasurementWrapper]) -> Option<f64> {
     Some(measurements.len() as f64)
   }
 

@@ -24,7 +24,6 @@ pub struct MeasurementWrapper {
 
 #[napi]
 impl MeasurementWrapper {
-  // #[napi(constructor)]
   pub fn new(measurement: Measurement, state: Arc<TakeoffStateHandler>) -> Self {
     let points = match measurement.clone() {
       Measurement::Count { .. } => 1,
@@ -79,9 +78,9 @@ impl MeasurementWrapper {
     let mut area = self.area.lock().unwrap();
     if area.is_none() {
       *area = self.calculate_area();
-      Ok(area.clone())
+      Ok(*area)
     } else {
-      Ok(area.clone())
+      Ok(*area)
     }
   }
 
@@ -121,7 +120,7 @@ impl MeasurementWrapper {
     if length.is_none() {
       *length = self.calculate_length();
     }
-    length.clone()
+    *length
   }
 
   fn calculate_length(&self) -> Option<Length> {

@@ -280,12 +280,12 @@ impl UnitValue {
   pub fn display(&self, unit: Unit) -> String {
     match self.value {
       UnitValueItem::Area { value } => UnitFormatter::Area {
-        unit: unit,
+        unit,
         value: unit.convert_area_to_unit(value),
       }
       .format(),
       UnitValueItem::Length { value } => UnitFormatter::Length {
-        unit: unit,
+        unit,
         value: unit.convert_length_to_unit(value),
       }
       .format(),

@@ -4,7 +4,7 @@ resolver = "2"
 
 
 [workspace.dependencies]
-napi = { version = "3.8.2", features = ["full", "async"] }
+napi = { version = "3.8.2", features = ["full", "async", "error_anyhow"] }
 napi-derive = { version = "3.5.1", features = ["type-def"] }
 uom = { version = "0.37.0", default-features = false, features = [
   "autoconvert",

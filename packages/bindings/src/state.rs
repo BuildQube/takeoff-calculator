@@ -10,7 +10,7 @@ use takeoff_core::page::Page;
 use takeoff_core::scale::Scale;
 use takeoff_core::state::StateOptions;
 #[napi]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TakeoffStateHandler {
   pages: Arc<DashMap<String, Page>>,
   groups: Arc<DashMap<String, GroupWrapper>>,
@@ -31,32 +31,6 @@ impl TakeoffStateHandler {
   ///
   /// * `State` - The new state.
   pub fn new(options: Option<StateOptions>) -> Self {
-    // env_logger::init();
-    // let pages = options
-    //   .pages
-    //   .into_iter()
-    //   .map(|page| (page.id.clone(), page))
-    //   .collect();
-    // let groups = Arc::new(DashMap::from_iter(
-    //   options
-    //     .groups
-    //     .into_iter()
-    //     .map(|group| (group.id.clone(), group)),
-    // ));
-    // let scales = options
-    //   .scales
-    //   .into_iter()
-    //   .map(|scale| (scale.id(), scale))
-    //   .collect();
-    // let measurements = Arc::new(DashMap::from_iter(options.measurements.into_iter().map(
-    //   |measurement| {
-    //     (
-    //       measurement.id().to_string(),
-    //       MeasurementWrapper::new(measurement),
-    //     )
-    //   },
-    // )));
-
     let state = Self {
       pages: Arc::new(DashMap::new()),
       groups: Arc::new(DashMap::new()),
@@ -69,15 +43,6 @@ impl TakeoffStateHandler {
     }
     state.compute_measurements();
     state
-  }
-
-  pub fn default() -> Self {
-    Self {
-      pages: Arc::new(DashMap::new()),
-      groups: Arc::new(DashMap::new()),
-      measurements: Arc::new(DashMap::new()),
-      scales: Arc::new(DashMap::new()),
-    }
   }
 
   #[napi]
@@ -127,30 +92,6 @@ impl TakeoffStateHandler {
     for measurement in measurements {
       measurement.calculate_scale();
     }
-  }
-
-  fn compute_measurement(&self, measurement_id: &str) {
-    let measurement = self.measurements.get(measurement_id);
-    if let Some(measurement) = measurement {
-      std::thread::scope(|s| {
-        s.spawn(|| {
-          println!("computing measurement: {:?}", measurement.id());
-          measurement.calculate_scale();
-        });
-      });
-    }
-  }
-
-  pub fn compute_group(&self, group_id: &str) -> Result<()> {
-    let group = self.groups.get(group_id);
-    if let Some(group) = group {
-      std::thread::scope(|s| {
-        s.spawn(|| {
-          group.recompute_measurements().unwrap();
-        });
-      });
-    }
-    Ok(())
   }
 
   #[napi]
@@ -276,7 +217,7 @@ impl TakeoffStateHandler {
     let page_id = scale.page_id();
     let res = self.scales.insert(scale.id(), scale);
     self.compute_page(&page_id);
-    return res;
+    res
   }
 
   #[napi]
@@ -292,6 +233,53 @@ impl TakeoffStateHandler {
       .filter(|entry| entry.value().get_scale().is_none())
       .map(|entry| entry.value().clone())
       .collect()
+  }
+}
+
+#[napi]
+#[cfg(not(target_family = "wasm"))]
+impl TakeoffStateHandler {
+  fn compute_measurement(&self, measurement_id: &str) {
+    let measurement = self.measurements.get(measurement_id);
+    if let Some(measurement) = measurement {
+      std::thread::scope(|s| {
+        s.spawn(|| {
+          println!("computing measurement: {:?}", measurement.id());
+          measurement.calculate_scale();
+        });
+      });
+    }
+  }
+
+  pub fn compute_group(&self, group_id: &str) -> Result<()> {
+    let group = self.groups.get(group_id);
+    if let Some(group) = group {
+      std::thread::scope(|s| {
+        s.spawn(|| {
+          group.recompute_measurements().unwrap();
+        });
+      });
+    }
+    Ok(())
+  }
+}
+
+#[napi]
+#[cfg(target_family = "wasm")]
+impl TakeoffStateHandler {
+  fn compute_measurement(&self, measurement_id: &str) {
+    let measurement = self.measurements.get(measurement_id);
+    if let Some(measurement) = measurement {
+      measurement.calculate_scale();
+    }
+  }
+
+  pub fn compute_group(&self, group_id: &str) -> Result<()> {
+    let group = self.groups.get(group_id);
+    if let Some(group) = group {
+      group.recompute_measurements().unwrap();
+    }
+    Ok(())
   }
 }
 
