@@ -394,9 +394,9 @@ jobs:
       - rust-test
       - build
       # NOTE: Temporarily disabled to speed up CI
-      # - test-macOS-windows-binding
-      # - test-linux-binding
-      # - test-wasi
+      - test-macOS-windows-binding
+      - test-linux-binding
+      - test-wasi
     steps:
       - uses: actions/checkout@v6
       - name: Caching for Turborepo

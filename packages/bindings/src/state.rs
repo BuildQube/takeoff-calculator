@@ -244,7 +244,6 @@ impl TakeoffStateHandler {
     if let Some(measurement) = measurement {
       std::thread::scope(|s| {
         s.spawn(|| {
-          println!("computing measurement: {:?}", measurement.id());
           measurement.calculate_scale();
         });
       });

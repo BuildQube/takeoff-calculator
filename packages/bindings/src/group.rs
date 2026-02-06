@@ -72,26 +72,21 @@ impl GroupWrapper {
     let measurements = self
       .state
       .get_measurements_by_group_id(self.id().to_string());
-    // println!("measurements: {:?}", measurements);
-    // let measurements = self.get_measurements();
+
     {
       *self.area.lock().unwrap() = self.calculate_area(&measurements)?;
-      println!("area: {:?}", self.area);
     }
 
     {
       *self.length.lock().unwrap() = self.calculate_length(&measurements)?;
-      println!("length: {:?}", self.length);
     }
 
     {
       *self.points.lock().unwrap() = self.calculate_points(&measurements);
-      println!("points: {:?}", self.points);
     }
 
     {
       *self.count.lock().unwrap() = self.calculate_count(&measurements);
-      println!("count: {:?}", self.count);
     }
 
     Ok(())

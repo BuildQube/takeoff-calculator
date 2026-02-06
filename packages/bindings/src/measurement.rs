@@ -53,7 +53,7 @@ impl MeasurementWrapper {
   fn calculate_area(&self) -> Option<Area> {
     if let Some(scale) = self.scale.lock().unwrap().as_ref() {
       let scale_ratio = scale.ratio();
-      // println!("scale_ratio: {:?}", scale_ratio);
+
       let area = self.raw_area() / (scale_ratio * scale_ratio);
       let res = scale.get_unit().get_area_unit(area as f32);
       return Some(res);
@@ -87,20 +87,16 @@ impl MeasurementWrapper {
   pub fn calculate_scale(&self) -> Option<Scale> {
     let mut current_scale: Option<Scale> = None;
     for scale in self.state.get_page_scales(self.page_id()) {
-      // println!("scale: {:?}", scale);
       if matches!(scale, Scale::Area { .. }) {
         if scale.is_in_bounding_box(&self.measurement.to_geometry()) {
-          // println!("setting scale: {:?}", scale);
           self.set_scale(scale.clone());
           return Some(scale);
         }
       } else {
-        // // println!("setting scale: {:?}", scale);
         current_scale = Some(scale.clone());
       }
     }
     if let Some(scale) = current_scale {
-      // println!("setting scale: {:?}", scale);
       self.set_scale(scale.clone());
       return Some(scale);
     }
@@ -218,7 +214,7 @@ mod tests {
       },
     });
     let area = measurement_wrapper.calculate_area().unwrap();
-    // println!("area: {:?}", area);
+
     assert_eq!(area.get::<square_meter>(), 2.0);
     assert_eq!(measurement_wrapper.convert_area(Unit::Meters).unwrap(), 2.0);
     assert_eq!(
