@@ -1,3 +1,4 @@
+pub mod contour;
 pub mod coords;
 pub mod group;
 pub mod measurement;
