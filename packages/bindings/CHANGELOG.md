@@ -1,5 +1,13 @@
 # @build-qube/takeoff-calculator
 
+## 2.0.2
+
+### Patch Changes
+
+- a12049a: Added test for point distance
+- a12049a: Change to async init for browser wasm
+- de272be: Fix measurement update clearing previous state
+
 ## 2.0.1
 
 ### Patch Changes
