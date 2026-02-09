@@ -1,5 +1,11 @@
 # @build-qube/takeoff-calculator
 
+## 2.0.4
+
+### Patch Changes
+
+- 001f81f: Update types for simplify polyline
+
 ## 2.0.3
 
 ### Patch Changes
