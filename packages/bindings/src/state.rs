@@ -142,6 +142,11 @@ impl TakeoffStateHandler {
   }
 
   #[napi]
+  pub fn remove_page(&self, page_id: String) -> Option<Page> {
+    self.pages.remove(&page_id).map(|(_, page)| page)
+  }
+
+  #[napi]
   pub fn get_group(&self, group_id: String) -> Option<GroupWrapper> {
     self
       .groups
@@ -167,6 +172,25 @@ impl TakeoffStateHandler {
       GroupWrapper::new(group, Arc::new(self.clone())),
     );
     Some(group_clone)
+  }
+
+  #[napi]
+  /// Removes a group from the state.
+  ///
+  /// # Arguments
+  ///
+  /// * `group_id` - The id of the group to remove.
+  ///
+  /// # Returns
+  /// * `None` - If the group was not found.
+  /// * `Some(group)` - If the group was found and removed.
+  pub fn remove_group(&self, group_id: String) -> Option<Group> {
+    let res = self.groups.remove(&group_id);
+    if let Some((_, group)) = res {
+      return Some(group.get_group());
+    }
+
+    None
   }
 
   #[napi]
@@ -201,6 +225,26 @@ impl TakeoffStateHandler {
   }
 
   #[napi]
+  /// Removes a measurement from the state.
+  ///
+  /// # Arguments
+  ///
+  /// * `measurement_id` - The id of the measurement to remove.
+  ///
+  /// # Returns
+  ///
+  /// * `None` - If the measurement was not found.
+  /// * `Some(measurement)` - If the measurement was found and removed.
+  pub fn remove_measurement(&self, measurement_id: String) -> Option<Measurement> {
+    let res = self.measurements.remove(&measurement_id);
+    if let Some((_, measurement)) = res {
+      let _ = self.compute_group(&measurement.get_group_id());
+      return Some(measurement.get_measurement());
+    }
+    None
+  }
+
+  #[napi]
   pub fn get_measurement(&self, measurement_id: String) -> Option<MeasurementWrapper> {
     self
       .measurements
@@ -224,6 +268,25 @@ impl TakeoffStateHandler {
     let res = self.scales.insert(scale.id(), scale);
     self.compute_page(&page_id);
     res
+  }
+
+  #[napi]
+  /// Removes a scale from the state.
+  ///
+  /// # Arguments
+  ///
+  /// * `scale_id` - The id of the scale to remove.
+  ///
+  /// # Returns
+  /// * `None` - If the scale was not found.
+  /// * `Some(scale)` - If the scale was found and removed.
+  pub fn remove_scale(&self, scale_id: String) -> Option<Scale> {
+    let scale = self.scales.remove(&scale_id);
+    if let Some((_, scale)) = scale {
+      self.compute_page(&scale.page_id());
+      return Some(scale);
+    }
+    None
   }
 
   #[napi]
@@ -385,6 +448,7 @@ mod tests {
     };
     state.upsert_group(group);
     let group = state.groups.get("1").unwrap();
+    let group_clone = group.clone();
     assert_eq!(
       group.get_area().unwrap().get_converted_value(Unit::Meters),
       0.25
@@ -396,5 +460,55 @@ mod tests {
       group_id: "1".to_string(),
       points: (Point::new(0.0, 0.0), Point::new(1.0, 1.0)),
     });
+
+    let initial_group_area = {
+      group_clone
+        .get_area()
+        .unwrap()
+        .get_converted_value(Unit::Meters)
+    };
+    println!("initial_group_area: {}", initial_group_area);
+
+    let measurement = state.remove_measurement("12".to_string());
+    assert!(measurement.is_some());
+    drop(measurement);
+
+    let group = state.get_group("1".to_string());
+    assert!(group.is_some());
+    let group_area = group
+      .unwrap()
+      .get_area()
+      .unwrap()
+      .get_converted_value(Unit::Meters);
+    assert_eq!(group_area, 0.25);
+
+    // let group_removed = state.remove_group("1".to_string());
+  }
+  #[test]
+  fn test_remove_group() {
+    let state = TakeoffStateHandler::new(Some(StateOptions {
+      pages: vec![],
+      groups: vec![],
+      measurements: vec![],
+      scales: vec![],
+    }));
+    let group = Group {
+      id: "1".to_string(),
+      name: None,
+      measurement_type: MeasurementType::Area,
+    };
+    state.upsert_group(group);
+    // let group = state.groups.get("1").unwrap();
+
+    let group_removed = state.remove_group("1".to_string());
+    assert!(group_removed.is_some());
+    let group = state.get_group("1".to_string());
+    assert!(group.is_none());
+    let group_area = group
+      .unwrap()
+      .get_area()
+      .unwrap()
+      .get_converted_value(Unit::Meters);
+    assert_eq!(group_area, 0.25);
   }
 }
