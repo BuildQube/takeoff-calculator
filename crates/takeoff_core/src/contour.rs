@@ -226,14 +226,16 @@ impl ContourInput {
   }
 
   fn get_geometry_collection(&self) -> GeometryCollection {
-    let lines: Vec<LineString<f64>> = self.lines.iter().map(|line| line.to_geometry()).collect();
-    let points_of_interest: Vec<GeoPoint<f64>> = self
+    let line_geometries = self
+      .lines
+      .iter()
+      .map(|line| Geometry::LineString(line.to_geometry()));
+    let point_geometries = self
       .points_of_interest
       .iter()
-      .map(|point| GeoPoint::new(point.point.x, point.point.y))
-      .collect();
-    let mut geometries: Vec<Geometry<f64>> = lines.into_iter().map(Geometry::LineString).collect();
-    geometries.extend(points_of_interest.into_iter().map(Geometry::Point));
+      .map(|point| Geometry::Point(GeoPoint::new(point.point.x, point.point.y)));
+
+    let geometries = line_geometries.chain(point_geometries).collect();
 
     GeometryCollection::new_from(geometries)
   }
@@ -243,10 +245,12 @@ impl ContourInput {
     let geometry_collection = self.get_geometry_collection();
     let bounding_box = geometry_collection.bounding_rect();
     if let Some(bounding_box) = bounding_box {
-      let min_point = bounding_box.min();
-      let max_point = bounding_box.max();
-      let (min_x, min_y) = min_point.into();
-      let (max_x, max_y) = max_point.into();
+      let min = bounding_box.min();
+      let max = bounding_box.max();
+      let min_x = min.x;
+      let min_y = min.y;
+      let max_x = max.x;
+      let max_y = max.y;
       return Some(((min_x, min_y), (max_x, max_y)));
     }
     None
