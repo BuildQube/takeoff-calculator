@@ -143,8 +143,10 @@ export declare class TakeoffStateHandler {
 	getMeasurementsMissingScale(): Array<MeasurementWrapper>;
 }
 
+/** Add 100 to the input */
 export declare function plus100(input: number): number;
 
+/** Add 200 to the input */
 export declare function plus200(input: number): number;
 export declare class UnitValue {
 	constructor(value: number, unit: Unit, magnitude: UnitValueItemType);
