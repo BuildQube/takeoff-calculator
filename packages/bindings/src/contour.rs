@@ -92,6 +92,11 @@ impl ContourWrapper {
     let y_start = min_y.floor() as i32;
     let y_end = max_y.ceil() as i32;
 
+    println!(
+      "x_start: {}, x_end: {}, y_start: {}, y_end: {}",
+      x_start, x_end, y_start, y_end
+    );
+
     for x in (x_start..=x_end).step_by(step) {
       for y in (y_start..=y_end).step_by(step) {
         if let Some(z) = surface_mesh.z_at(x as f64, y as f64) {
@@ -100,5 +105,35 @@ impl ContourWrapper {
       }
     }
     Some(data)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use takeoff_core::contour::ContourLineInput;
+  use takeoff_core::coords::Point;
+
+  use super::*;
+
+  #[test]
+  fn test_get_scatter_data() {
+    let contour = ContourWrapper::with_default_state(ContourInput {
+      id: "1".to_string(),
+      name: None,
+      page_id: "1".to_string(),
+      lines: vec![ContourLineInput {
+        elevation: 0.0,
+        points: vec![
+          Point::new(0.0, 0.0),
+          Point::new(100.0, 0.0),
+          Point::new(100.0, 100.0),
+          Point::new(0.0, 100.0),
+        ],
+      }],
+      points_of_interest: vec![],
+    });
+    let scatter_data = contour.get_scatter_data(10);
+    assert!(scatter_data.is_some());
+    assert_eq!(scatter_data.unwrap().len(), 121);
   }
 }
