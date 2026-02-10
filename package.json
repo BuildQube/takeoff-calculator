@@ -4,7 +4,7 @@
 	"packageManager": "pnpm@10.24.0",
 	"scripts": {
 		"dev": "turbo run dev",
-		"build": "turbo run build",
+		"build": "turbo run build format",
 		"change": "pnpm changeset",
 		"test": "turbo run test",
 		"test:local": "turbo run test:local",
