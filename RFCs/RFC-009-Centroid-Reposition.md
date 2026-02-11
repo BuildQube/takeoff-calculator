@@ -4,7 +4,7 @@
 
 - **Identifier**: RFC-009
 - **Title**: Centroid Reposition (Measurement Move by Centroid)
-- **Status**: Draft
+- **Status**: Completed
 
 ## Summary
 
@@ -36,13 +36,13 @@ Low–Medium.
 
 ## Acceptance criteria
 
-- [ ] Given a valid measurement and a new centroid point, the API returns an updated measurement whose centroid equals the given point (within floating-point tolerance).
-- [ ] Area, length, and count are unchanged; only position (translation) changes.
-- [ ] All measurement kinds are supported: Polygon, Polyline, Rectangle, Count. For Count, the single point becomes the new centroid.
-- [ ] Empty or invalid geometry is handled with existing error types (e.g. `EmptyGeometry`).
-- [ ] The API is exposed from core and from Node/WASI bindings (same shape as existing measurement APIs).
-- [ ] Unit tests in core: for each kind, after repositioning, `get_centroid()` equals the requested point and area/length (where applicable) are unchanged.
-- [ ] Bindings smoke test: exported API is callable and returns the expected measurement shape.
+- [x] Given a valid measurement and a new centroid point, the API returns an updated measurement whose centroid equals the given point (within floating-point tolerance).
+- [x] Area, length, and count are unchanged; only position (translation) changes.
+- [x] All measurement kinds are supported: Polygon, Polyline, Rectangle, Count. For Count, the single point becomes the new centroid.
+- [x] Empty or invalid geometry is handled with existing error types (e.g. `EmptyGeometry`).
+- [x] The API is exposed from core and from Node/WASI bindings (same shape as existing measurement APIs).
+- [x] Unit tests in core: for each kind, after repositioning, `get_centroid()` equals the requested point and area/length (where applicable) are unchanged.
+- [x] Bindings smoke test: exported API is callable and returns the expected measurement shape.
 
 ---
 

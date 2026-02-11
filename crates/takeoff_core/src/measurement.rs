@@ -220,6 +220,67 @@ impl Measurement {
       .ok_or_else(|| TakeoffError::empty_geometry("cannot compute centroid for empty geometry"))
   }
 
+  /// Returns a new measurement with geometry translated so its centroid is at `new_centroid`.
+  /// Area, length, and count are unchanged; only position changes.
+  ///
+  /// # Errors
+  ///
+  /// Propagates errors from [`get_centroid()`](Self::get_centroid) (e.g. [`TakeoffError::EmptyGeometry`]).
+  pub fn with_centroid_at(self, new_centroid: Point) -> TakeoffResult<Measurement> {
+    let current = self.get_centroid()?;
+    let dx = new_centroid.x - current.x;
+    let dy = new_centroid.y - current.y;
+
+    let translate = |p: Point| Point::new(p.x + dx, p.y + dy);
+
+    Ok(match self {
+      Measurement::Count {
+        id,
+        page_id,
+        group_id,
+        points: (_,),
+      } => Measurement::Count {
+        id,
+        page_id,
+        group_id,
+        points: (new_centroid,),
+      },
+      Measurement::Polygon {
+        id,
+        page_id,
+        group_id,
+        points,
+      } => Measurement::Polygon {
+        id,
+        page_id,
+        group_id,
+        points: points.into_iter().map(translate).collect(),
+      },
+      Measurement::Polyline {
+        id,
+        page_id,
+        group_id,
+        points,
+      } => Measurement::Polyline {
+        id,
+        page_id,
+        group_id,
+        points: points.into_iter().map(translate).collect(),
+      },
+      Measurement::Rectangle {
+        id,
+        page_id,
+        group_id,
+        points: (p1, p2),
+      } => Measurement::Rectangle {
+        id,
+        page_id,
+        group_id,
+        points: (translate(p1), translate(p2)),
+      },
+    })
+  }
+
   /// Calculate the area of the polygon
   ///
   /// Returns an error if the geometry is invalid.
@@ -272,6 +333,140 @@ impl Measurement {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  const CENTROID_EPSILON: f64 = 1e-10;
+
+  #[test]
+  fn test_with_centroid_at_rectangle() {
+    let m = Measurement::Rectangle {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: (Point::new(0.0, 0.0), Point::new(100.0, 50.0)),
+    };
+    let area_before = m.pixel_area().unwrap();
+    let perimeter_before = m.pixel_perimeter().unwrap();
+    let new_centroid = Point::new(10.0, 20.0);
+    let repositioned = m.with_centroid_at(new_centroid).unwrap();
+    let got = repositioned.get_centroid().unwrap();
+    assert!(
+      (got.x - new_centroid.x).abs() < CENTROID_EPSILON
+        && (got.y - new_centroid.y).abs() < CENTROID_EPSILON,
+      "centroid should equal requested point"
+    );
+    assert_eq!(repositioned.pixel_area().unwrap(), area_before);
+    assert_eq!(repositioned.pixel_perimeter().unwrap(), perimeter_before);
+  }
+
+  #[test]
+  fn test_with_centroid_at_polygon() {
+    let m = Measurement::Polygon {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![
+        Point::new(0.0, 0.0),
+        Point::new(10.0, 0.0),
+        Point::new(10.0, 10.0),
+        Point::new(0.0, 10.0),
+      ],
+    };
+    let area_before = m.pixel_area().unwrap();
+    let perimeter_before = m.pixel_perimeter().unwrap();
+    let new_centroid = Point::new(5.0, 5.0);
+    let repositioned = m.with_centroid_at(new_centroid).unwrap();
+    let got = repositioned.get_centroid().unwrap();
+    assert!(
+      (got.x - new_centroid.x).abs() < CENTROID_EPSILON
+        && (got.y - new_centroid.y).abs() < CENTROID_EPSILON
+    );
+    assert_eq!(repositioned.pixel_area().unwrap(), area_before);
+    assert_eq!(repositioned.pixel_perimeter().unwrap(), perimeter_before);
+  }
+
+  #[test]
+  fn test_with_centroid_at_polyline() {
+    let m = Measurement::Polyline {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![Point::new(0.0, 0.0), Point::new(4.0, 0.0)],
+    };
+    let length_before = m.pixel_perimeter().unwrap();
+    let new_centroid = Point::new(100.0, 200.0);
+    let repositioned = m.with_centroid_at(new_centroid).unwrap();
+    let got = repositioned.get_centroid().unwrap();
+    assert!(
+      (got.x - new_centroid.x).abs() < CENTROID_EPSILON
+        && (got.y - new_centroid.y).abs() < CENTROID_EPSILON
+    );
+    assert_eq!(repositioned.pixel_perimeter().unwrap(), length_before);
+  }
+
+  #[test]
+  fn test_with_centroid_at_count() {
+    let m = Measurement::Count {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: (Point::new(7.0, 8.0),),
+    };
+    let new_centroid = Point::new(1.0, 2.0);
+    let repositioned = m.with_centroid_at(new_centroid).unwrap();
+    let got = repositioned.get_centroid().unwrap();
+    assert!(
+      (got.x - new_centroid.x).abs() < CENTROID_EPSILON
+        && (got.y - new_centroid.y).abs() < CENTROID_EPSILON
+    );
+    if let Measurement::Count { points, .. } = repositioned {
+      assert!((points.0.x - new_centroid.x).abs() < CENTROID_EPSILON);
+      assert!((points.0.y - new_centroid.y).abs() < CENTROID_EPSILON);
+    } else {
+      panic!("expected Count variant");
+    }
+  }
+
+  #[test]
+  fn test_with_centroid_at_empty_polygon_error() {
+    let m = Measurement::Polygon {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![Point::new(0.0, 0.0), Point::new(1.0, 0.0)],
+    };
+    assert!(matches!(
+      m.with_centroid_at(Point::new(0.0, 0.0)),
+      Err(crate::error::TakeoffError::EmptyGeometry { .. })
+    ));
+  }
+
+  #[test]
+  fn test_with_centroid_at_empty_polyline_error() {
+    let m = Measurement::Polyline {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![Point::new(0.0, 0.0)],
+    };
+    assert!(matches!(
+      m.with_centroid_at(Point::new(0.0, 0.0)),
+      Err(crate::error::TakeoffError::EmptyGeometry { .. })
+    ));
+  }
+
+  #[test]
+  fn test_with_centroid_at_invalid_rectangle_error() {
+    let m = Measurement::Rectangle {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: (Point::new(0.0, 0.0), Point::new(0.0, 0.0)),
+    };
+    assert!(matches!(
+      m.with_centroid_at(Point::new(0.0, 0.0)),
+      Err(crate::error::TakeoffError::EmptyGeometry { .. })
+    ));
+  }
 
   #[test]
   fn test_pixel_area() {

@@ -338,6 +338,19 @@ export type ReferenceSurfaceInput =
 	| { type: "Polygon"; points: Array<Point>; elevation: number }
 	| { type: "Rectangle"; points: [Point, Point]; elevation: number };
 
+/**
+ * Reposition a measurement so its centroid is at the given point.
+ * Returns a new measurement (same kind and metadata); area, length, and count are unchanged.
+ *
+ * # Errors
+ *
+ * Returns an error if the measurement has invalid or empty geometry (e.g. `EmptyGeometry`).
+ */
+export declare function repositionMeasurementToCentroid(
+	measurement: Measurement,
+	newCentroid: Point,
+): Measurement;
+
 export type Scale =
 	| {
 			type: "Area";

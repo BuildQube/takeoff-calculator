@@ -1,8 +1,10 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: Needed for efficient testing */
 import { describe, expect, test } from "vitest";
 import {
+	getCentroid,
 	type Measurement,
 	plus100,
+	repositionMeasurementToCentroid,
 	type Scale,
 	TakeoffStateHandler,
 	type Unit,
@@ -12,6 +14,41 @@ import baseline from "../test_data/baseline.json";
 test("sync function from native code", () => {
 	const fixture = 42;
 	expect(plus100(fixture)).toEqual(fixture + 100);
+});
+
+describe("RFC-009: centroid reposition", () => {
+	test("repositionMeasurementToCentroid is callable and returns measurement with centroid at requested point", () => {
+		const measurement: Measurement = {
+			id: "1",
+			type: "Rectangle",
+			pageId: "1",
+			groupId: "1",
+			points: [
+				{ x: 0, y: 0 },
+				{ x: 100, y: 50 },
+			],
+		};
+
+		const newCentroid = { x: 10, y: 20 };
+		const result = repositionMeasurementToCentroid(measurement, newCentroid);
+		expect(result).toBeDefined();
+		expect(result.type).toBe("Rectangle");
+		expect(result.id).toBe("1");
+		expect(result).toEqual({
+			id: "1",
+			type: "Rectangle",
+			pageId: "1",
+			groupId: "1",
+			points: [
+				{ x: -40, y: -5 },
+				{ x: 60, y: 45 },
+			],
+		});
+		const centroid = getCentroid(result);
+		expect(centroid).not.toBeNull();
+		expect(centroid!.x).toBeCloseTo(newCentroid.x);
+		expect(centroid!.y).toBeCloseTo(newCentroid.y);
+	});
 });
 
 describe("TakeoffStateHandler", () => {
