@@ -29,11 +29,11 @@ Low.
 
 ## Acceptance criteria
 
-- [ ] New units can be added without breaking existing API (extensible enum or registry).
-- [ ] Conversion math for new units is correct and testable.
-- [ ] Unknown or invalid unit still returns typed error (RFC-001).
-- [ ] Same edge-case handling as F3 (unit mismatch, unknown unit).
-- [ ] List of supported units is explicit in API or docs.
+- [x] New units can be added without breaking existing API (extensible enum or registry).
+- [x] Conversion math for new units is correct and testable.
+- [x] Unknown or invalid unit still returns typed error (RFC-001).
+- [x] Same edge-case handling as F3 (unit mismatch, unknown unit).
+- [x] List of supported units is explicit in API or docs.
 
 ---
 
