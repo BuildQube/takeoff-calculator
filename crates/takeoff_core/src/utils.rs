@@ -15,9 +15,12 @@ pub fn simplify_polyline(points: Vec<Point>, tolerance: f64) -> Vec<Point> {
 }
 
 /// Get the centroid of a measurement
+///
+/// Returns `None` if the measurement has invalid geometry.
+/// For more detailed error information, use `measurement.get_centroid()` directly.
 #[napi]
 pub fn get_centroid(measurement: Measurement) -> Option<Point> {
-  measurement.get_centroid()
+  measurement.get_centroid().ok()
 }
 
 #[cfg(test)]
@@ -54,5 +57,18 @@ mod tests {
 
     let centroid = get_centroid(measurement);
     assert_eq!(centroid, Some(Point::new(0.5, 0.5)));
+  }
+
+  #[test]
+  fn test_get_centroid_invalid() {
+    let measurement = Measurement::Polygon {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![Point::new(0.0, 0.0), Point::new(1.0, 0.0)], // Only 2 points
+    };
+
+    let centroid = get_centroid(measurement);
+    assert_eq!(centroid, None);
   }
 }

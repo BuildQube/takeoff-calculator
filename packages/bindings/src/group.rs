@@ -3,8 +3,8 @@ use crate::state::TakeoffStateHandler;
 use anyhow::Result;
 use napi_derive::napi;
 use std::sync::{Arc, Mutex};
-use takeoff_core::group::Group;
 use takeoff_core::unit::UnitValue;
+use takeoff_core::{error::TakeoffResult, group::Group};
 
 use uom::si::f32::{Area, Length};
 
@@ -44,10 +44,10 @@ impl GroupWrapper {
     Ok(area)
   }
 
-  fn calculate_length(&self, measurements: &[MeasurementWrapper]) -> Result<Option<Length>> {
+  fn calculate_length(&self, measurements: &[MeasurementWrapper]) -> TakeoffResult<Option<Length>> {
     let length = measurements
       .iter()
-      .filter_map(|measurement| measurement.get_length_value())
+      .filter_map(|measurement| measurement.get_length_value().unwrap())
       .reduce(|a, b| a + b);
     Ok(length)
   }

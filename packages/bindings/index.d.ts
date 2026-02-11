@@ -225,7 +225,12 @@ export declare function distance(
 	points: [Point, Point] | [Point3D, Point3D],
 ): number;
 
-/** Get the centroid of a measurement */
+/**
+ * Get the centroid of a measurement
+ *
+ * Returns `None` if the measurement has invalid geometry.
+ * For more detailed error information, use `measurement.get_centroid()` directly.
+ */
 export declare function getCentroid(measurement: Measurement): Point | null;
 
 export interface Group {
