@@ -37,13 +37,9 @@ impl GroupWrapper {
   }
 
   fn calculate_area(&self, measurements: &[MeasurementWrapper]) -> Result<Option<Area>> {
-    // let measurements = self.get_measurements();
-    // println!("measurements: {:?}", measurements);
     let area = measurements
       .iter()
       .filter_map(|measurement| measurement.get_area_value().unwrap_or(None))
-      // .filter(|area| area.is_some())
-      // .map(|area| area.unwrap())
       .reduce(|a, b| a + b);
     Ok(area)
   }
@@ -91,15 +87,6 @@ impl GroupWrapper {
 
     Ok(())
   }
-
-  //   #[napi]
-  //   pub fn get_measurements(&self) -> Vec<MeasurementWrapper> {
-  //     println!("getting measurements: {:?}", self.group);
-  //     let res = self.state.get_measurements_by_group_id(self.id());
-
-  //     // println!("measurements: {:?}", res);
-  //     res
-  //   }
 
   #[napi(getter)]
   /// Get the id of the group.

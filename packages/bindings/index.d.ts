@@ -335,7 +335,7 @@ export type Unit =
 	| "Meters"
 	| "Centimeters";
 
-export type UnitValueItemType = "Area" | "Length";
+export type UnitValueItemType = "Area" | "Length" | "Volume";
 
 /** Result of a volumetric cut/fill calculation. */
 export interface VolumetricResult {

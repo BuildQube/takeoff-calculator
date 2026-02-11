@@ -2,8 +2,9 @@ use napi_derive::napi;
 use serde::{Deserialize, Serialize};
 use uom::fmt::DisplayStyle::Abbreviation;
 use uom::si::area::{square_centimeter, square_foot, square_inch, square_meter, square_yard};
-use uom::si::f32::{Area, Length};
+use uom::si::f32::{Area, Length, Volume};
 use uom::si::length::{centimeter, foot, inch, meter, yard};
+use uom::si::volume::{cubic_centimeter, cubic_foot, cubic_inch, cubic_meter, cubic_yard};
 /// Measurement units supported by the system
 #[napi(string_enum)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,6 +58,26 @@ impl Unit {
     }
   }
 
+  pub fn convert_volume_to_unit(&self, volume: Volume) -> f32 {
+    match self {
+      Unit::Yards => volume.get::<cubic_yard>(),
+      Unit::Feet => volume.get::<cubic_foot>(),
+      Unit::Inches => volume.get::<cubic_inch>(),
+      Unit::Meters => volume.get::<cubic_meter>(),
+      Unit::Centimeters => volume.get::<cubic_centimeter>(),
+    }
+  }
+
+  pub fn get_volume_unit(&self, value: f32) -> Volume {
+    match self {
+      Unit::Yards => Volume::new::<cubic_yard>(value),
+      Unit::Feet => Volume::new::<cubic_foot>(value),
+      Unit::Inches => Volume::new::<cubic_inch>(value),
+      Unit::Meters => Volume::new::<cubic_meter>(value),
+      Unit::Centimeters => Volume::new::<cubic_centimeter>(value),
+    }
+  }
+
   /// Convert a value from one unit to another
   pub fn convert(&self, value: f32, to: &Unit) -> f32 {
     let from = self.get_unit(value);
@@ -79,6 +100,18 @@ impl Unit {
       Unit::Inches => from.get::<square_inch>(),
       Unit::Meters => from.get::<square_meter>(),
       Unit::Centimeters => from.get::<square_centimeter>(),
+    }
+  }
+
+  pub fn convert_volume(&self, value: f32, to: &Unit) -> f32 {
+    let from = self.get_volume_unit(value);
+
+    match to {
+      Unit::Yards => from.get::<cubic_yard>(),
+      Unit::Feet => from.get::<cubic_foot>(),
+      Unit::Inches => from.get::<cubic_inch>(),
+      Unit::Meters => from.get::<cubic_meter>(),
+      Unit::Centimeters => from.get::<cubic_centimeter>(),
     }
   }
 
@@ -116,6 +149,10 @@ impl UnitUtils {
     from.convert_area(value, &to)
   }
 
+  pub fn convert_volume(value: f32, from: Unit, to: Unit) -> f32 {
+    from.convert_volume(value, &to)
+  }
+
   /// Get all available units
   pub fn all_units() -> Vec<Unit> {
     vec![
@@ -141,6 +178,7 @@ impl UnitUtils {
 pub enum UnitFormatter {
   Length { unit: Unit, value: f32 },
   Area { unit: Unit, value: f32 },
+  Volume { unit: Unit, value: f32 },
 }
 
 impl UnitFormatter {
@@ -216,6 +254,41 @@ impl UnitFormatter {
         .get_unit(*value)
         .into_format_args(centimeter, Abbreviation)
         .to_string(),
+      UnitFormatter::Volume {
+        unit: Unit::Yards,
+        value,
+      } => Unit::Yards
+        .get_volume_unit(*value)
+        .into_format_args(cubic_yard, Abbreviation)
+        .to_string(),
+      UnitFormatter::Volume {
+        unit: Unit::Feet,
+        value,
+      } => Unit::Feet
+        .get_volume_unit(*value)
+        .into_format_args(cubic_foot, Abbreviation)
+        .to_string(),
+      UnitFormatter::Volume {
+        unit: Unit::Inches,
+        value,
+      } => Unit::Inches
+        .get_volume_unit(*value)
+        .into_format_args(cubic_inch, Abbreviation)
+        .to_string(),
+      UnitFormatter::Volume {
+        unit: Unit::Meters,
+        value,
+      } => Unit::Meters
+        .get_volume_unit(*value)
+        .into_format_args(cubic_meter, Abbreviation)
+        .to_string(),
+      UnitFormatter::Volume {
+        unit: Unit::Centimeters,
+        value,
+      } => Unit::Centimeters
+        .get_volume_unit(*value)
+        .into_format_args(cubic_centimeter, Abbreviation)
+        .to_string(),
     }
   }
 }
@@ -232,6 +305,7 @@ impl UnitFormatter {
 pub enum UnitValueItem {
   Area { value: Area },
   Length { value: Length },
+  Volume { value: Volume },
 }
 
 #[napi(string_enum)]
@@ -239,6 +313,7 @@ pub enum UnitValueItem {
 pub enum UnitValueItemType {
   Area,
   Length,
+  Volume,
 }
 
 #[napi]
@@ -262,6 +337,11 @@ impl UnitValue {
           value: unit.get_unit(value as f32),
         },
       },
+      UnitValueItemType::Volume => Self {
+        value: UnitValueItem::Volume {
+          value: unit.get_volume_unit(value as f32),
+        },
+      },
     }
   }
 
@@ -273,6 +353,11 @@ impl UnitValue {
   pub fn from_length(value: Length) -> Self {
     Self {
       value: UnitValueItem::Length { value },
+    }
+  }
+  pub fn from_volume(value: Volume) -> Self {
+    Self {
+      value: UnitValueItem::Volume { value },
     }
   }
 
@@ -289,6 +374,11 @@ impl UnitValue {
         value: unit.convert_length_to_unit(value),
       }
       .format(),
+      UnitValueItem::Volume { value } => UnitFormatter::Volume {
+        unit,
+        value: unit.convert_volume_to_unit(value),
+      }
+      .format(),
     }
   }
 
@@ -297,6 +387,7 @@ impl UnitValue {
     match self.value {
       UnitValueItem::Area { value } => to.convert_area_to_unit(value) as f64,
       UnitValueItem::Length { value } => to.convert_length_to_unit(value) as f64,
+      UnitValueItem::Volume { value } => to.convert_volume_to_unit(value) as f64,
     }
   }
 }
@@ -341,6 +432,10 @@ mod tests {
     let unit_value = UnitValue::new(1.0, Unit::Meters, UnitValueItemType::Area);
 
     assert_eq!(unit_value.display(Unit::Meters), "1 m²");
+    assert_eq!(unit_value.get_converted_value(Unit::Meters), 1.0);
+
+    let unit_value = UnitValue::new(1.0, Unit::Meters, UnitValueItemType::Volume);
+    assert_eq!(unit_value.display(Unit::Meters), "1 m³");
     assert_eq!(unit_value.get_converted_value(Unit::Meters), 1.0);
   }
 }
