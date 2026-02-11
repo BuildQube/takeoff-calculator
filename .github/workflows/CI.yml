@@ -71,7 +71,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install
       - name: Test Rust
-        run: pnpm test:rust
+        run: cargo test
   build:
     strategy:
       fail-fast: false
