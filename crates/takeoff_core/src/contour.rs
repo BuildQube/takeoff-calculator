@@ -1,9 +1,12 @@
-use crate::coords::{Point, Point3D};
+use crate::{
+  TakeoffError,
+  coords::{Point, Point3D},
+  error::TakeoffResult,
+};
 use delaunator::triangulate;
 use geo::{BoundingRect, Geometry, GeometryCollection, LineString, Point as GeoPoint};
 use napi_derive::napi;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 #[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -63,37 +66,6 @@ pub struct ContourInput {
   /// The points of interest that are used to create the contour map
   pub points_of_interest: Vec<ContourPointOfInterestInput>,
 }
-
-/// Error type for surface mesh creation failures.
-#[derive(Debug, Clone, PartialEq)]
-pub enum SurfaceMeshError {
-  /// Too few points for triangulation (need at least 3).
-  TooFewPoints { count: usize },
-  /// All points are collinear; Delaunay triangulation produces no triangles.
-  CollinearPoints,
-}
-
-impl fmt::Display for SurfaceMeshError {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      SurfaceMeshError::TooFewPoints { count } => {
-        write!(
-          f,
-          "too few points for triangulation: {} (need at least 3)",
-          count
-        )
-      }
-      SurfaceMeshError::CollinearPoints => {
-        write!(
-          f,
-          "all points are collinear; cannot create triangulated surface"
-        )
-      }
-    }
-  }
-}
-
-impl std::error::Error for SurfaceMeshError {}
 
 /// A triangulated 3D surface mesh suitable for volumetric calculations.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -168,7 +140,7 @@ impl SurfaceMesh {
 }
 
 impl TryFrom<ContourInput> for SurfaceMesh {
-  type Error = SurfaceMeshError;
+  type Error = TakeoffError;
 
   fn try_from(input: ContourInput) -> Result<Self, Self::Error> {
     let points = input.get_points();
@@ -176,7 +148,7 @@ impl TryFrom<ContourInput> for SurfaceMesh {
     let vertices = Self::deduplicate_points(&points);
 
     if vertices.len() < 3 {
-      return Err(SurfaceMeshError::TooFewPoints {
+      return Err(TakeoffError::SurfaceMeshTooFewPoints {
         count: vertices.len(),
       });
     }
@@ -189,7 +161,7 @@ impl TryFrom<ContourInput> for SurfaceMesh {
     let result = triangulate(&delaunator_points);
 
     if result.triangles.is_empty() {
-      return Err(SurfaceMeshError::CollinearPoints);
+      return Err(TakeoffError::SurfaceMeshCollinearPoints);
     }
 
     let triangles: Vec<[u32; 3]> = result
@@ -207,7 +179,12 @@ impl TryFrom<ContourInput> for SurfaceMesh {
 
 impl ContourInput {
   /// Convert contour input to a triangulated 3D surface mesh.
-  pub fn to_surface_mesh(&self) -> Result<SurfaceMesh, SurfaceMeshError> {
+  ///
+  /// # Errors
+  ///
+  /// Returns [`TakeoffError::SurfaceMeshTooFewPoints`] if there are fewer than 3 points.
+  /// Returns [`TakeoffError::SurfaceMeshCollinearPoints`] if all points are collinear.
+  pub fn to_surface_mesh(&self) -> TakeoffResult<SurfaceMesh> {
     SurfaceMesh::try_from(self.clone())
   }
 
@@ -306,7 +283,10 @@ mod tests {
       points_of_interest: vec![],
     };
     let err = input.to_surface_mesh().unwrap_err();
-    assert!(matches!(err, SurfaceMeshError::TooFewPoints { count: 2 }));
+    assert!(matches!(
+      err,
+      TakeoffError::SurfaceMeshTooFewPoints { count: 2 }
+    ));
   }
 
   #[test]
@@ -326,7 +306,7 @@ mod tests {
       points_of_interest: vec![],
     };
     let err = input.to_surface_mesh().unwrap_err();
-    assert!(matches!(err, SurfaceMeshError::CollinearPoints));
+    assert!(matches!(err, TakeoffError::SurfaceMeshCollinearPoints));
   }
 
   #[test]

@@ -1,13 +1,18 @@
 use std::sync::{Arc, Mutex};
 
 use napi_derive::napi;
+use takeoff_core::error::TakeoffResult;
 use takeoff_core::scale::Scale;
 use takeoff_core::unit::UnitValue;
 use takeoff_core::{measurement::Measurement, unit::Unit};
 use uom::si::f32::{Area, Length};
 
 use crate::state::TakeoffStateHandler;
-use anyhow::Result;
+
+use napi::Result;
+
+use crate::utils::lock_mutex;
+
 #[napi]
 #[derive(Debug, Clone)]
 pub struct MeasurementWrapper {
@@ -41,9 +46,15 @@ impl MeasurementWrapper {
     }
   }
 
+  pub fn default(measurement: Measurement) -> Self {
+    Self::new(measurement, Arc::new(TakeoffStateHandler::default()))
+  }
+
   pub fn set_measurement(&self, measurement: Measurement) {
-    *self.measurement.lock().unwrap() = measurement;
-    self.recompute_measurements();
+    *lock_mutex(self.measurement.lock(), "measurement")
+      .expect("BUG: measurement mutex should not be poisoned") = measurement;
+    // Ignore recomputation errors - they will be handled when values are accessed
+    let _ = self.recompute_measurements();
   }
 
   #[napi(getter)]
@@ -51,24 +62,30 @@ impl MeasurementWrapper {
     self.points
   }
 
+  #[napi(getter)]
   pub fn get_count(&self) -> f64 {
     1.0
   }
 
-  fn calculate_area(&self) -> Option<Area> {
-    if let Some(scale) = self.scale.lock().unwrap().as_ref() {
-      let scale_ratio = scale.ratio();
+  fn calculate_area(&self) -> TakeoffResult<Option<Area>> {
+    let scale_guard = lock_mutex(self.scale.lock(), "scale")?;
+    if let Some(scale) = scale_guard.as_ref() {
+      let scale_ratio = scale.ratio()?;
 
-      let area = self.raw_area() / (scale_ratio * scale_ratio);
+      let raw_area = self.raw_area()?;
+
+      let area = raw_area / (scale_ratio * scale_ratio);
       let res = scale.get_unit().get_area_unit(area as f32);
-      return Some(res);
+      return Ok(Some(res));
     }
-    None
+    Ok(None)
   }
 
   #[napi(getter)]
   pub fn get_measurement(&self) -> Measurement {
-    self.measurement.lock().unwrap().clone()
+    lock_mutex(self.measurement.lock(), "measurement")
+      .expect("BUG: measurement mutex should not be poisoned")
+      .clone()
   }
 
   #[napi(getter)]
@@ -79,21 +96,26 @@ impl MeasurementWrapper {
     None
   }
 
-  pub fn get_area_value(&self) -> Result<Option<Area>> {
-    let mut area = self.area.lock().unwrap();
+  pub fn get_area_value(&self) -> TakeoffResult<Option<Area>> {
+    let mut area = lock_mutex(self.area.lock(), "area")?;
     if area.is_none() {
-      *area = self.calculate_area();
-      Ok(*area)
-    } else {
-      Ok(*area)
+      *area = self.calculate_area()?;
     }
+    Ok(*area)
   }
 
   pub fn calculate_scale(&self) -> Option<Scale> {
     let mut current_scale: Option<Scale> = None;
+    let measurement = lock_mutex(self.measurement.lock(), "measurement").ok()?;
+    let geometry = match measurement.to_geometry() {
+      Ok(geom) => geom,
+      Err(_) => return None, // Invalid geometry, cannot determine scale
+    };
+    drop(measurement);
+
     for scale in self.state.get_page_scales(&self.page_id()) {
       if matches!(scale, Scale::Area { .. }) {
-        if scale.is_in_bounding_box(&self.measurement.lock().unwrap().to_geometry()) {
+        if scale.is_in_bounding_box(&geometry) {
           self.set_scale(scale.clone());
           return Some(scale);
         }
@@ -109,90 +131,109 @@ impl MeasurementWrapper {
   }
 
   #[napi]
-  pub fn convert_area(&self, unit: Unit) -> Option<f32> {
-    if let Some(area) = self.calculate_area() {
-      return Some(unit.convert_area_to_unit(area));
-    }
-    None
+  pub fn convert_area(&self, unit: Unit) -> Result<Option<f32>> {
+    let area = self.calculate_area()?;
+    Ok(area.map(|area| unit.convert_area_to_unit(area)))
   }
 
-  pub fn get_length_value(&self) -> Option<Length> {
-    let mut length = self.length.lock().unwrap();
+  pub fn get_length_value(&self) -> TakeoffResult<Option<Length>> {
+    let mut length = lock_mutex(self.length.lock(), "length")?;
     if length.is_none() {
-      *length = self.calculate_length();
+      *length = self.calculate_length()?;
     }
-    *length
+    Ok(*length)
   }
 
-  fn calculate_length(&self) -> Option<Length> {
-    if let Some(scale) = self.scale.lock().unwrap().as_ref() {
-      let scale_ratio = scale.ratio();
-      let length = self.raw_perimeter() / scale_ratio;
+  fn calculate_length(&self) -> TakeoffResult<Option<Length>> {
+    let scale_guard = lock_mutex(self.scale.lock(), "scale")?;
+    if let Some(scale) = scale_guard.as_ref() {
+      let scale_ratio = scale.ratio()?;
+
+      let raw_perimeter = self.raw_perimeter()?;
+
+      let length = raw_perimeter / scale_ratio;
       let res = scale.get_unit().get_unit(length as f32);
-      return Some(res);
+      return Ok(Some(res));
     }
-    None
+    Ok(None)
   }
 
   #[napi]
-  pub fn convert_length(&self, unit: Unit) -> Option<f32> {
-    if let Some(length) = self.calculate_length() {
-      return Some(unit.convert_length_to_unit(length));
+  pub fn convert_length(&self, unit: Unit) -> Result<Option<f32>> {
+    if let Some(length) = self.calculate_length()? {
+      return Ok(Some(unit.convert_length_to_unit(length)));
     }
-    None
+    Ok(None)
   }
 
   #[napi(getter)]
-  pub fn get_length(&self) -> Option<UnitValue> {
-    if let Some(length) = self.calculate_length() {
-      return Some(UnitValue::from_length(length));
+  pub fn get_length(&self) -> Result<Option<UnitValue>> {
+    if let Some(length) = self.calculate_length()? {
+      return Ok(Some(UnitValue::from_length(length)));
     }
-    None
+    Ok(None)
   }
 
-  pub fn recompute_measurements(&self) {
+  pub fn recompute_measurements(&self) -> TakeoffResult<()> {
     let area = self.calculate_area();
-    *self.area.lock().unwrap() = area;
+    *lock_mutex(self.area.lock(), "area")? = area?;
 
     let length = self.calculate_length();
-    *self.length.lock().unwrap() = length;
+    *lock_mutex(self.length.lock(), "length")? = length?;
 
+    // Ignore recomputation errors - they will be handled when group values are accessed
     let _ = self.state.compute_group(&self.get_group_id());
+    Ok(())
   }
 
   pub fn set_scale(&self, scale: Scale) {
-    *self.scale.lock().unwrap() = Some(scale);
-    self.recompute_measurements();
+    *lock_mutex(self.scale.lock(), "scale").expect("BUG: scale mutex should not be poisoned") =
+      Some(scale);
+    // Ignore recomputation errors - they will be handled when values are accessed
+    let _ = self.recompute_measurements();
   }
 
   #[napi(getter)]
   pub fn get_scale(&self) -> Option<Scale> {
-    self.scale.lock().unwrap().clone()
+    lock_mutex(self.scale.lock(), "scale")
+      .ok()
+      .and_then(|s| s.clone())
   }
 
   #[napi(getter)]
   pub fn id(&self) -> String {
-    self.measurement.lock().unwrap().id().to_string()
+    lock_mutex(self.measurement.lock(), "measurement")
+      .expect("BUG: measurement mutex should not be poisoned")
+      .id()
+      .to_string()
   }
 
   #[napi(getter)]
   pub fn page_id(&self) -> String {
-    self.measurement.lock().unwrap().page_id().to_string()
+    lock_mutex(self.measurement.lock(), "measurement")
+      .expect("BUG: measurement mutex should not be poisoned")
+      .page_id()
+      .to_string()
   }
 
   #[napi(getter)]
   pub fn get_group_id(&self) -> String {
-    self.measurement.lock().unwrap().group_id().to_string()
+    lock_mutex(self.measurement.lock(), "measurement")
+      .expect("BUG: measurement mutex should not be poisoned")
+      .group_id()
+      .to_string()
   }
 
   #[napi(getter)]
-  pub fn raw_area(&self) -> f64 {
-    self.measurement.lock().unwrap().pixel_area()
+  pub fn raw_area(&self) -> Result<f64> {
+    let area = lock_mutex(self.measurement.lock(), "measurement")?.pixel_area()?;
+    Ok(area)
   }
 
   #[napi(getter)]
-  pub fn raw_perimeter(&self) -> f64 {
-    self.measurement.lock().unwrap().pixel_perimeter()
+  pub fn raw_perimeter(&self) -> Result<f64> {
+    let perimeter = lock_mutex(self.measurement.lock(), "measurement")?.pixel_perimeter()?;
+    Ok(perimeter)
   }
 }
 
@@ -211,7 +252,7 @@ mod tests {
       points: (Point::new(0.0, 0.0), Point::new(100.0, 50.0)),
     };
 
-    assert!(measurement.pixel_area() == 5000.0);
+    assert_eq!(measurement.pixel_area().unwrap(), 5000.0);
     let measurement_wrapper =
       MeasurementWrapper::new(measurement, Arc::new(TakeoffStateHandler::default()));
     measurement_wrapper.set_scale(Scale::Default {
@@ -223,12 +264,21 @@ mod tests {
         unit: Unit::Meters,
       },
     });
-    let area = measurement_wrapper.calculate_area().unwrap();
+    let area = measurement_wrapper.calculate_area().unwrap().unwrap();
 
     assert_eq!(area.get::<square_meter>(), 2.0);
-    assert_eq!(measurement_wrapper.convert_area(Unit::Meters).unwrap(), 2.0);
     assert_eq!(
-      measurement_wrapper.convert_length(Unit::Meters).unwrap(),
+      measurement_wrapper
+        .convert_area(Unit::Meters)
+        .unwrap()
+        .unwrap(),
+      2.0
+    );
+    assert_eq!(
+      measurement_wrapper
+        .convert_length(Unit::Meters)
+        .unwrap()
+        .unwrap(),
       6.0
     );
   }
@@ -243,10 +293,16 @@ mod tests {
     };
     let measurement_wrapper =
       MeasurementWrapper::new(measurement, Arc::new(TakeoffStateHandler::default()));
-    assert_eq!(measurement_wrapper.raw_area(), 5000.0);
-    assert_eq!(measurement_wrapper.raw_perimeter(), 300.0);
-    assert_eq!(measurement_wrapper.convert_area(Unit::Meters), None);
-    assert_eq!(measurement_wrapper.convert_length(Unit::Meters), None);
+    assert_eq!(measurement_wrapper.raw_area().ok(), Some(5000.0));
+    assert_eq!(measurement_wrapper.raw_perimeter().ok(), Some(300.0));
+    assert_eq!(
+      measurement_wrapper.convert_area(Unit::Meters).unwrap(),
+      None
+    );
+    assert_eq!(
+      measurement_wrapper.convert_length(Unit::Meters).unwrap(),
+      None
+    );
   }
 
   #[test]
@@ -260,7 +316,10 @@ mod tests {
     let measurement_wrapper =
       MeasurementWrapper::new(measurement, Arc::new(TakeoffStateHandler::default()));
 
-    assert_eq!(measurement_wrapper.raw_perimeter(), 1.0);
-    assert_eq!(measurement_wrapper.convert_length(Unit::Meters), None);
+    assert_eq!(measurement_wrapper.raw_perimeter().ok(), Some(1.0));
+    assert_eq!(
+      measurement_wrapper.convert_length(Unit::Meters).unwrap(),
+      None
+    );
   }
 }

@@ -1,3 +1,4 @@
+use crate::error::TakeoffError;
 use napi_derive::napi;
 use serde::{Deserialize, Serialize};
 use uom::fmt::DisplayStyle::Abbreviation;
@@ -133,6 +134,21 @@ impl Unit {
       Unit::Inches => "Inches",
       Unit::Meters => "Meters",
       Unit::Centimeters => "Centimeters",
+    }
+  }
+
+  /// Parse a unit string into a Unit enum.
+  ///
+  /// Returns an error if the string is not recognized as a supported unit.
+  /// Case-insensitive matching is performed.
+  pub fn from_str(s: &str) -> Result<Unit, TakeoffError> {
+    match s.to_lowercase().as_str() {
+      "yards" | "yard" | "yd" => Ok(Unit::Yards),
+      "feet" | "foot" | "ft" => Ok(Unit::Feet),
+      "inches" | "inch" | "in" => Ok(Unit::Inches),
+      "meters" | "meter" | "m" => Ok(Unit::Meters),
+      "centimeters" | "centimeter" | "cm" => Ok(Unit::Centimeters),
+      _ => Err(TakeoffError::unknown_unit(s.to_string())),
     }
   }
 }
@@ -437,5 +453,41 @@ mod tests {
     let unit_value = UnitValue::new(1.0, Unit::Meters, UnitValueItemType::Volume);
     assert_eq!(unit_value.display(Unit::Meters), "1 m³");
     assert_eq!(unit_value.get_converted_value(Unit::Meters), 1.0);
+  }
+
+  #[test]
+  fn test_unit_from_str() {
+    assert_eq!(Unit::from_str("yards").unwrap(), Unit::Yards);
+    assert_eq!(Unit::from_str("Yards").unwrap(), Unit::Yards);
+    assert_eq!(Unit::from_str("YARDS").unwrap(), Unit::Yards);
+    assert_eq!(Unit::from_str("yd").unwrap(), Unit::Yards);
+    assert_eq!(Unit::from_str("feet").unwrap(), Unit::Feet);
+    assert_eq!(Unit::from_str("ft").unwrap(), Unit::Feet);
+    assert_eq!(Unit::from_str("inches").unwrap(), Unit::Inches);
+    assert_eq!(Unit::from_str("in").unwrap(), Unit::Inches);
+    assert_eq!(Unit::from_str("meters").unwrap(), Unit::Meters);
+    assert_eq!(Unit::from_str("m").unwrap(), Unit::Meters);
+    assert_eq!(Unit::from_str("centimeters").unwrap(), Unit::Centimeters);
+    assert_eq!(Unit::from_str("cm").unwrap(), Unit::Centimeters);
+  }
+
+  #[test]
+  fn test_unit_from_str_unknown() {
+    assert!(matches!(
+      Unit::from_str("kilometers"),
+      Err(crate::error::TakeoffError::UnknownUnit { .. })
+    ));
+    assert!(matches!(
+      Unit::from_str("miles"),
+      Err(crate::error::TakeoffError::UnknownUnit { .. })
+    ));
+    assert!(matches!(
+      Unit::from_str(""),
+      Err(crate::error::TakeoffError::UnknownUnit { .. })
+    ));
+    assert!(matches!(
+      Unit::from_str("invalid"),
+      Err(crate::error::TakeoffError::UnknownUnit { .. })
+    ));
   }
 }

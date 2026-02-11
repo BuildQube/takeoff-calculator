@@ -20,7 +20,6 @@ pub struct TakeoffStateHandler {
 
 #[napi]
 impl TakeoffStateHandler {
-  #[napi(constructor)]
   /// Creates a new state.
   ///
   /// # Arguments
@@ -30,6 +29,7 @@ impl TakeoffStateHandler {
   /// # Returns
   ///
   /// * `State` - The new state.
+  #[napi(constructor)]
   pub fn new(options: Option<StateOptions>) -> Self {
     let state = Self {
       pages: Arc::new(DashMap::new()),
@@ -51,6 +51,25 @@ impl TakeoffStateHandler {
       .measurements
       .iter()
       .filter(|entry| entry.value().get_group_id() == group_id)
+      .map(|entry| entry.value().clone())
+      .collect()
+  }
+
+  /// Get the measurements by page id.
+  ///
+  /// # Arguments
+  ///
+  /// * `page_id` - The id of the page.
+  ///
+  /// # Returns
+  ///
+  /// * `Vec<MeasurementWrapper>` - The measurements that are on the page.
+  #[napi]
+  pub fn get_measurements_by_page_id(&self, page_id: String) -> Vec<MeasurementWrapper> {
+    self
+      .measurements
+      .iter()
+      .filter(|entry| entry.value().page_id() == page_id)
       .map(|entry| entry.value().clone())
       .collect()
   }
@@ -224,9 +243,10 @@ impl TakeoffStateHandler {
 
     let res = self.measurements.insert(
       measurement.id().to_string(),
-      MeasurementWrapper::new(measurement, Arc::new(self.clone())),
+      MeasurementWrapper::new(measurement.clone(), Arc::new(self.clone())),
     );
     self.compute_measurement(&id);
+    let _ = self.compute_group(measurement.group_id());
 
     if let Some(measurement) = res {
       return Some(measurement.get_measurement());
@@ -248,9 +268,8 @@ impl TakeoffStateHandler {
   pub fn remove_measurement(&self, measurement_id: String) -> Option<Measurement> {
     let res = self.measurements.remove(&measurement_id);
     if let Some((_, measurement)) = res {
-      self
-        .compute_group(&measurement.get_group_id())
-        .expect("Failed to recompute group after measurement removal");
+      // Ignore recomputation errors - they will be handled when group values are accessed
+      let _ = self.compute_group(&measurement.get_group_id());
       return Some(measurement.get_measurement());
     }
     None
@@ -336,7 +355,8 @@ impl TakeoffStateHandler {
     if let Some(group) = group {
       std::thread::scope(|s| {
         s.spawn(|| {
-          group.recompute_measurements().unwrap();
+          // Ignore recomputation errors - they will be handled when group values are accessed
+          let _ = group.recompute_measurements();
         });
       });
     }

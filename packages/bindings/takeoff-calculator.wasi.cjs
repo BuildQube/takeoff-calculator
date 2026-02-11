@@ -135,6 +135,8 @@ module.exports.UnitValue = __napiModule.exports.UnitValue;
 module.exports.distance = __napiModule.exports.distance;
 module.exports.getCentroid = __napiModule.exports.getCentroid;
 module.exports.MeasurementType = __napiModule.exports.MeasurementType;
+module.exports.repositionMeasurementToCentroid =
+	__napiModule.exports.repositionMeasurementToCentroid;
 module.exports.simplifyPolyline = __napiModule.exports.simplifyPolyline;
 module.exports.Unit = __napiModule.exports.Unit;
 module.exports.UnitValueItemType = __napiModule.exports.UnitValueItemType;

@@ -68,6 +68,8 @@ export const UnitValue = __napiModule.exports.UnitValue;
 export const distance = __napiModule.exports.distance;
 export const getCentroid = __napiModule.exports.getCentroid;
 export const MeasurementType = __napiModule.exports.MeasurementType;
+export const repositionMeasurementToCentroid =
+	__napiModule.exports.repositionMeasurementToCentroid;
 export const simplifyPolyline = __napiModule.exports.simplifyPolyline;
 export const Unit = __napiModule.exports.Unit;
 export const UnitValueItemType = __napiModule.exports.UnitValueItemType;

@@ -1,4 +1,5 @@
 use crate::coords::{DistanceTrait, Point};
+use crate::error::{TakeoffError, TakeoffResult};
 use geo::{Area, Centroid, Coord, CoordsIter, Geometry, LineString, Polygon as GeoPolygon, Rect};
 use napi_derive::napi;
 use serde::{Deserialize, Serialize};
@@ -33,6 +34,47 @@ pub enum Measurement {
 }
 
 impl Measurement {
+  /// Validate that the measurement has valid geometry.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`TakeoffError::EmptyGeometry`] if:
+  /// - Polygon has fewer than 3 points
+  /// - Polyline has fewer than 2 points
+  /// - Rectangle has invalid or identical corner points
+  pub fn validate(&self) -> TakeoffResult<()> {
+    match self {
+      Measurement::Polygon { points, .. } => {
+        if points.len() < 3 {
+          return Err(TakeoffError::empty_geometry(format!(
+            "polygon must have at least 3 points, got {}",
+            points.len()
+          )));
+        }
+        Ok(())
+      }
+      Measurement::Polyline { points, .. } => {
+        if points.len() < 2 {
+          return Err(TakeoffError::empty_geometry(format!(
+            "polyline must have at least 2 points, got {}",
+            points.len()
+          )));
+        }
+        Ok(())
+      }
+      Measurement::Rectangle { points, .. } => {
+        let (p1, p2) = points;
+        if (p1.x - p2.x).abs() < f64::EPSILON && (p1.y - p2.y).abs() < f64::EPSILON {
+          return Err(TakeoffError::empty_geometry(
+            "rectangle corners must be distinct points",
+          ));
+        }
+        Ok(())
+      }
+      Measurement::Count { .. } => Ok(()), // Count always has valid geometry (single point)
+    }
+  }
+
   /// Get the id of the measurement
   pub fn id(&self) -> &str {
     match self {
@@ -61,70 +103,197 @@ impl Measurement {
     }
   }
 
-  /// Convert the measurement to a polygon
-  pub fn to_polygon(&self) -> Option<GeoPolygon<f64>> {
+  /// Convert the measurement to a polygon.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`TakeoffError::EmptyGeometry`] if:
+  /// - The geometry is invalid (e.g., polygon with < 3 points)
+  /// - The measurement type cannot be converted to a polygon
+  pub fn to_polygon(&self) -> TakeoffResult<GeoPolygon<f64>> {
+    self.validate()?;
     match self {
       Measurement::Polygon { points, .. } => {
         let points: Vec<Coord<f64>> = points.iter().map(|p| (*p).into()).collect();
-        Some(GeoPolygon::new(LineString::from(points), vec![]))
+        Ok(GeoPolygon::new(LineString::from(points), vec![]))
       }
       Measurement::Rectangle { points, .. } => {
         let start: Coord<f64> = points.0.into();
         let end: Coord<f64> = points.1.into();
         let rect = Rect::new(start, end);
-        Some(rect.to_polygon())
+        Ok(rect.to_polygon())
       }
-      _ => None,
+      _ => Err(TakeoffError::empty_geometry(
+        "measurement cannot be converted to polygon",
+      )),
     }
   }
 
-  pub fn to_line_string(&self) -> Option<LineString<f64>> {
+  /// Convert the measurement to a line string.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`TakeoffError::EmptyGeometry`] if:
+  /// - The geometry is invalid (e.g., polyline with < 2 points)
+  /// - The measurement type cannot be converted to a line string
+  pub fn to_line_string(&self) -> TakeoffResult<LineString<f64>> {
+    self.validate()?;
     match self {
-      Measurement::Polyline { points, .. } => Some(LineString::new(
+      Measurement::Polyline { points, .. } => Ok(LineString::new(
         points.iter().map(|p| (*p).into()).collect(),
       )),
-      Measurement::Rectangle { .. } => Some(self.to_polygon().unwrap().exterior().clone()),
-      Measurement::Polygon { .. } => Some(self.to_polygon().unwrap().exterior().clone()),
-      Measurement::Count { .. } => None,
+      Measurement::Rectangle { .. } => Ok(self.to_polygon()?.exterior().clone()),
+      Measurement::Polygon { .. } => Ok(self.to_polygon()?.exterior().clone()),
+      Measurement::Count { .. } => Err(TakeoffError::empty_geometry(
+        "count measurement cannot be converted to line string",
+      )),
     }
   }
 
-  pub fn to_point(&self) -> Point {
+  /// Converts the measurement to a single point.
+  ///
+  /// For polygons and polylines, returns the first point.
+  /// For counts and rectangles, returns the single point or first corner.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`TakeoffError::EmptyGeometry`] if:
+  /// - The polygon has no points
+  /// - The polyline has no points
+  pub fn to_point(&self) -> TakeoffResult<Point> {
     match self {
-      Measurement::Count { points, .. } => points.0,
-      Measurement::Polygon { points, .. } => *points.first().unwrap(),
-      Measurement::Polyline { points, .. } => *points.first().unwrap(),
-      Measurement::Rectangle { points, .. } => points.0,
+      Measurement::Count { points, .. } => Ok(points.0),
+      Measurement::Polygon { points, .. } => {
+        if points.is_empty() {
+          Err(TakeoffError::empty_geometry("polygon has no points"))
+        } else {
+          // Safe: we've already checked that points is not empty
+          Ok(
+            *points
+              .first()
+              .expect("BUG: points.is_empty() was checked above"),
+          )
+        }
+      }
+      Measurement::Polyline { points, .. } => {
+        if points.is_empty() {
+          Err(TakeoffError::empty_geometry("polyline has no points"))
+        } else {
+          // Safe: we've already checked that points is not empty
+          Ok(
+            *points
+              .first()
+              .expect("BUG: points.is_empty() was checked above"),
+          )
+        }
+      }
+      Measurement::Rectangle { points, .. } => Ok(points.0),
     }
   }
 
-  pub fn to_geometry(&self) -> Geometry<f64> {
+  /// Convert the measurement to a geometry object.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`TakeoffError::EmptyGeometry`] if the measurement geometry is invalid.
+  pub fn to_geometry(&self) -> TakeoffResult<Geometry<f64>> {
+    self.validate()?;
     match self {
-      Measurement::Polygon { .. } => Geometry::Polygon(self.to_polygon().unwrap()),
-      Measurement::Rectangle { .. } => Geometry::Polygon(self.to_polygon().unwrap()),
-      Measurement::Polyline { .. } => Geometry::LineString(self.to_line_string().unwrap()),
-      Measurement::Count { .. } => Geometry::Point(self.to_point().into()),
+      Measurement::Polygon { .. } => Ok(Geometry::Polygon(self.to_polygon()?)),
+      Measurement::Rectangle { .. } => Ok(Geometry::Polygon(self.to_polygon()?)),
+      Measurement::Polyline { .. } => Ok(Geometry::LineString(self.to_line_string()?)),
+      Measurement::Count { .. } => Ok(Geometry::Point(self.to_point()?.into())),
     }
   }
 
-  pub fn get_centroid(&self) -> Option<Point> {
-    let geometry = self.to_geometry();
+  /// Get the centroid (geometric center) of the measurement.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`TakeoffError::EmptyGeometry`] if the centroid cannot be computed
+  /// (e.g., for empty geometry).
+  pub fn get_centroid(&self) -> TakeoffResult<Point> {
+    let geometry = self.to_geometry()?;
     let centroid = geometry.centroid();
-    centroid.map(Point::from)
+    centroid
+      .map(Point::from)
+      .ok_or_else(|| TakeoffError::empty_geometry("cannot compute centroid for empty geometry"))
+  }
+
+  /// Returns a new measurement with geometry translated so its centroid is at `new_centroid`.
+  /// Area, length, and count are unchanged; only position changes.
+  ///
+  /// # Errors
+  ///
+  /// Propagates errors from [`get_centroid()`](Self::get_centroid) (e.g. [`TakeoffError::EmptyGeometry`]).
+  pub fn with_centroid_at(self, new_centroid: Point) -> TakeoffResult<Measurement> {
+    let current = self.get_centroid()?;
+    let dx = new_centroid.x - current.x;
+    let dy = new_centroid.y - current.y;
+
+    let translate = |p: Point| Point::new(p.x + dx, p.y + dy);
+
+    Ok(match self {
+      Measurement::Count {
+        id,
+        page_id,
+        group_id,
+        points: (_,),
+      } => Measurement::Count {
+        id,
+        page_id,
+        group_id,
+        points: (new_centroid,),
+      },
+      Measurement::Polygon {
+        id,
+        page_id,
+        group_id,
+        points,
+      } => Measurement::Polygon {
+        id,
+        page_id,
+        group_id,
+        points: points.into_iter().map(translate).collect(),
+      },
+      Measurement::Polyline {
+        id,
+        page_id,
+        group_id,
+        points,
+      } => Measurement::Polyline {
+        id,
+        page_id,
+        group_id,
+        points: points.into_iter().map(translate).collect(),
+      },
+      Measurement::Rectangle {
+        id,
+        page_id,
+        group_id,
+        points: (p1, p2),
+      } => Measurement::Rectangle {
+        id,
+        page_id,
+        group_id,
+        points: (translate(p1), translate(p2)),
+      },
+    })
   }
 
   /// Calculate the area of the polygon
-  pub fn pixel_area(&self) -> f64 {
-    let polygon = self.to_polygon();
-    if let Some(polygon) = polygon {
-      polygon.unsigned_area()
-    } else {
-      0.0
-    }
+  ///
+  /// Returns an error if the geometry is invalid.
+  pub fn pixel_area(&self) -> TakeoffResult<f64> {
+    let polygon = self.to_polygon()?;
+    Ok(polygon.unsigned_area())
   }
 
-  /// Calculate the perimeter of the rectangle
-  pub fn pixel_perimeter(&self) -> f64 {
+  /// Calculate the perimeter/length of the measurement
+  ///
+  /// Returns an error if the geometry is invalid.
+  pub fn pixel_perimeter(&self) -> TakeoffResult<f64> {
+    self.validate()?;
     match self {
       Measurement::Polygon { points, .. } => {
         let mut perimeter = 0.0;
@@ -132,17 +301,17 @@ impl Measurement {
           let j = (i + 1) % points.len();
           perimeter += points[i].distance_to(&points[j]);
         }
-        perimeter
+        Ok(perimeter)
       }
       Measurement::Rectangle { .. } => {
-        let polygon = self.to_polygon().unwrap();
+        let polygon = self.to_polygon()?;
         let coords: Vec<Point> = polygon.exterior_coords_iter().map(Point::from).collect();
         let mut perimeter = 0.0;
         for i in 0..coords.len() {
           let j = (i + 1) % coords.len();
           perimeter += coords[i].distance_to(&coords[j]);
         }
-        perimeter
+        Ok(perimeter)
       }
       Measurement::Polyline { points, .. } => {
         let mut perimeter = 0.0;
@@ -154,9 +323,9 @@ impl Measurement {
         for i in 0..points.len() - 1 {
           perimeter += points[i].distance_to(&points[i + 1]);
         }
-        perimeter
+        Ok(perimeter)
       }
-      Measurement::Count { .. } => 0.0,
+      Measurement::Count { .. } => Ok(0.0),
     }
   }
 }
@@ -164,6 +333,140 @@ impl Measurement {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  const CENTROID_EPSILON: f64 = 1e-10;
+
+  #[test]
+  fn test_with_centroid_at_rectangle() {
+    let m = Measurement::Rectangle {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: (Point::new(0.0, 0.0), Point::new(100.0, 50.0)),
+    };
+    let area_before = m.pixel_area().unwrap();
+    let perimeter_before = m.pixel_perimeter().unwrap();
+    let new_centroid = Point::new(10.0, 20.0);
+    let repositioned = m.with_centroid_at(new_centroid).unwrap();
+    let got = repositioned.get_centroid().unwrap();
+    assert!(
+      (got.x - new_centroid.x).abs() < CENTROID_EPSILON
+        && (got.y - new_centroid.y).abs() < CENTROID_EPSILON,
+      "centroid should equal requested point"
+    );
+    assert_eq!(repositioned.pixel_area().unwrap(), area_before);
+    assert_eq!(repositioned.pixel_perimeter().unwrap(), perimeter_before);
+  }
+
+  #[test]
+  fn test_with_centroid_at_polygon() {
+    let m = Measurement::Polygon {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![
+        Point::new(0.0, 0.0),
+        Point::new(10.0, 0.0),
+        Point::new(10.0, 10.0),
+        Point::new(0.0, 10.0),
+      ],
+    };
+    let area_before = m.pixel_area().unwrap();
+    let perimeter_before = m.pixel_perimeter().unwrap();
+    let new_centroid = Point::new(5.0, 5.0);
+    let repositioned = m.with_centroid_at(new_centroid).unwrap();
+    let got = repositioned.get_centroid().unwrap();
+    assert!(
+      (got.x - new_centroid.x).abs() < CENTROID_EPSILON
+        && (got.y - new_centroid.y).abs() < CENTROID_EPSILON
+    );
+    assert_eq!(repositioned.pixel_area().unwrap(), area_before);
+    assert_eq!(repositioned.pixel_perimeter().unwrap(), perimeter_before);
+  }
+
+  #[test]
+  fn test_with_centroid_at_polyline() {
+    let m = Measurement::Polyline {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![Point::new(0.0, 0.0), Point::new(4.0, 0.0)],
+    };
+    let length_before = m.pixel_perimeter().unwrap();
+    let new_centroid = Point::new(100.0, 200.0);
+    let repositioned = m.with_centroid_at(new_centroid).unwrap();
+    let got = repositioned.get_centroid().unwrap();
+    assert!(
+      (got.x - new_centroid.x).abs() < CENTROID_EPSILON
+        && (got.y - new_centroid.y).abs() < CENTROID_EPSILON
+    );
+    assert_eq!(repositioned.pixel_perimeter().unwrap(), length_before);
+  }
+
+  #[test]
+  fn test_with_centroid_at_count() {
+    let m = Measurement::Count {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: (Point::new(7.0, 8.0),),
+    };
+    let new_centroid = Point::new(1.0, 2.0);
+    let repositioned = m.with_centroid_at(new_centroid).unwrap();
+    let got = repositioned.get_centroid().unwrap();
+    assert!(
+      (got.x - new_centroid.x).abs() < CENTROID_EPSILON
+        && (got.y - new_centroid.y).abs() < CENTROID_EPSILON
+    );
+    if let Measurement::Count { points, .. } = repositioned {
+      assert!((points.0.x - new_centroid.x).abs() < CENTROID_EPSILON);
+      assert!((points.0.y - new_centroid.y).abs() < CENTROID_EPSILON);
+    } else {
+      panic!("expected Count variant");
+    }
+  }
+
+  #[test]
+  fn test_with_centroid_at_empty_polygon_error() {
+    let m = Measurement::Polygon {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![Point::new(0.0, 0.0), Point::new(1.0, 0.0)],
+    };
+    assert!(matches!(
+      m.with_centroid_at(Point::new(0.0, 0.0)),
+      Err(crate::error::TakeoffError::EmptyGeometry { .. })
+    ));
+  }
+
+  #[test]
+  fn test_with_centroid_at_empty_polyline_error() {
+    let m = Measurement::Polyline {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![Point::new(0.0, 0.0)],
+    };
+    assert!(matches!(
+      m.with_centroid_at(Point::new(0.0, 0.0)),
+      Err(crate::error::TakeoffError::EmptyGeometry { .. })
+    ));
+  }
+
+  #[test]
+  fn test_with_centroid_at_invalid_rectangle_error() {
+    let m = Measurement::Rectangle {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: (Point::new(0.0, 0.0), Point::new(0.0, 0.0)),
+    };
+    assert!(matches!(
+      m.with_centroid_at(Point::new(0.0, 0.0)),
+      Err(crate::error::TakeoffError::EmptyGeometry { .. })
+    ));
+  }
 
   #[test]
   fn test_pixel_area() {
@@ -173,7 +476,7 @@ mod tests {
       group_id: "1".to_string(),
       points: (Point::new(0.0, 0.0), Point::new(100.0, 50.0)),
     };
-    assert!(measurement.pixel_area() == 5000.0);
+    assert!(measurement.pixel_area().unwrap() == 5000.0);
   }
   #[test]
   fn test_pixel_perimeter() {
@@ -183,7 +486,7 @@ mod tests {
       group_id: "1".to_string(),
       points: (Point::new(0.0, 0.0), Point::new(100.0, 50.0)),
     };
-    assert!(measurement.pixel_perimeter() == 300.0);
+    assert!(measurement.pixel_perimeter().unwrap() == 300.0);
   }
 
   #[test]
@@ -194,6 +497,52 @@ mod tests {
       group_id: "1".to_string(),
       points: vec![Point::new(0.0, 0.0), Point::new(1.0, 0.0)],
     };
-    assert!(measurement.pixel_perimeter() == 1.0);
+    assert!(measurement.pixel_perimeter().unwrap() == 1.0);
+  }
+
+  #[test]
+  fn test_empty_polygon_error() {
+    let measurement = Measurement::Polygon {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![Point::new(0.0, 0.0), Point::new(1.0, 0.0)], // Only 2 points
+    };
+    assert!(matches!(
+      measurement.validate(),
+      Err(crate::error::TakeoffError::EmptyGeometry { .. })
+    ));
+    assert!(matches!(
+      measurement.pixel_area(),
+      Err(crate::error::TakeoffError::EmptyGeometry { .. })
+    ));
+  }
+
+  #[test]
+  fn test_empty_polyline_error() {
+    let measurement = Measurement::Polyline {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: vec![Point::new(0.0, 0.0)], // Only 1 point
+    };
+    assert!(matches!(
+      measurement.validate(),
+      Err(crate::error::TakeoffError::EmptyGeometry { .. })
+    ));
+  }
+
+  #[test]
+  fn test_invalid_rectangle_error() {
+    let measurement = Measurement::Rectangle {
+      id: "1".to_string(),
+      page_id: "1".to_string(),
+      group_id: "1".to_string(),
+      points: (Point::new(0.0, 0.0), Point::new(0.0, 0.0)), // Same point
+    };
+    assert!(matches!(
+      measurement.validate(),
+      Err(crate::error::TakeoffError::EmptyGeometry { .. })
+    ));
   }
 }

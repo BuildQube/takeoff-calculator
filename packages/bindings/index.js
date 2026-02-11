@@ -791,6 +791,8 @@ module.exports.UnitValue = nativeBinding.UnitValue;
 module.exports.distance = nativeBinding.distance;
 module.exports.getCentroid = nativeBinding.getCentroid;
 module.exports.MeasurementType = nativeBinding.MeasurementType;
+module.exports.repositionMeasurementToCentroid =
+	nativeBinding.repositionMeasurementToCentroid;
 module.exports.simplifyPolyline = nativeBinding.simplifyPolyline;
 module.exports.Unit = nativeBinding.Unit;
 module.exports.UnitValueItemType = nativeBinding.UnitValueItemType;

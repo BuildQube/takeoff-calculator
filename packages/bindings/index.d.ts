@@ -2,7 +2,11 @@
 /* eslint-disable */
 export declare class ContourWrapper {
 	constructor(contour: ContourInput);
-	/** Get the surface points for the contour. */
+	/**
+	 * Get the surface points for the contour.
+	 *
+	 * Returns `None` if the surface mesh is not available or if the mutex is poisoned.
+	 */
 	getSurfacePoints(): Array<Point3D> | null;
 	/**
 	 * Compute cut/fill volume against a reference surface.
@@ -36,15 +40,36 @@ export declare class ContourWrapper {
 export declare class GroupWrapper {
 	/** Get the id of the group. */
 	get id(): string;
+	/**
+	 * Get the area for this group.
+	 *
+	 * Returns `None` if the area has not been computed or if the mutex is poisoned.
+	 */
 	get area(): UnitValue | null;
+	/**
+	 * Get the length for this group.
+	 *
+	 * Returns `None` if the length has not been computed or if the mutex is poisoned.
+	 */
 	get length(): UnitValue | null;
+	/**
+	 * Get the points count for this group.
+	 *
+	 * Returns `None` if the points count has not been computed or if the mutex is poisoned.
+	 */
 	get points(): number | null;
+	/**
+	 * Get the count for this group.
+	 *
+	 * Returns `None` if the count has not been computed or if the mutex is poisoned.
+	 */
 	get count(): number | null;
 	get group(): Group;
 }
 
 export declare class MeasurementWrapper {
 	get points(): number;
+	get count(): number;
 	get measurement(): Measurement;
 	get area(): UnitValue | null;
 	convertArea(unit: Unit): number | null;
@@ -72,6 +97,18 @@ export declare class TakeoffStateHandler {
 	 */
 	constructor(options?: StateOptions | undefined | null);
 	getMeasurementsByGroupId(groupId: string): Array<MeasurementWrapper>;
+	/**
+	 * Get the measurements by page id.
+	 *
+	 * # Arguments
+	 *
+	 * * `page_id` - The id of the page.
+	 *
+	 * # Returns
+	 *
+	 * * `Vec<MeasurementWrapper>` - The measurements that are on the page.
+	 */
+	getMeasurementsByPageId(pageId: string): Array<MeasurementWrapper>;
 	/**
 	 * Get the scale for a measurement.
 	 *
@@ -225,7 +262,12 @@ export declare function distance(
 	points: [Point, Point] | [Point3D, Point3D],
 ): number;
 
-/** Get the centroid of a measurement */
+/**
+ * Get the centroid of a measurement
+ *
+ * Returns `None` if the measurement has invalid geometry.
+ * For more detailed error information, use `measurement.get_centroid()` directly.
+ */
 export declare function getCentroid(measurement: Measurement): Point | null;
 
 export interface Group {
@@ -295,6 +337,19 @@ export interface Point3D {
 export type ReferenceSurfaceInput =
 	| { type: "Polygon"; points: Array<Point>; elevation: number }
 	| { type: "Rectangle"; points: [Point, Point]; elevation: number };
+
+/**
+ * Reposition a measurement so its centroid is at the given point.
+ * Returns a new measurement (same kind and metadata); area, length, and count are unchanged.
+ *
+ * # Errors
+ *
+ * Returns an error if the measurement has invalid or empty geometry (e.g. `EmptyGeometry`).
+ */
+export declare function repositionMeasurementToCentroid(
+	measurement: Measurement,
+	newCentroid: Point,
+): Measurement;
 
 export type Scale =
 	| {
