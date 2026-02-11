@@ -8,6 +8,6 @@ export default {
 		"turbo run format:rs format:fix",
 		"cargo clippy --workspace --fix --allow-dirty",
 	],
-	"*.@(js|ts|tsx|yml|yaml|md|json)": ["pnpm exec biome check --write"],
+	"*.@(js|ts|tsx|md|json)": ["pnpm exec biome check --write"],
 	"*.toml": ["taplo format"],
 };
