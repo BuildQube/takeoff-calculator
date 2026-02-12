@@ -1,5 +1,12 @@
 # @build-qube/takeoff-calculator
 
+## 2.2.0
+
+### Minor Changes
+
+- c107ed7: Add volume to unit calculations
+- 6914395: Added translate function for measurements and moved to PRD development
+
 ## 2.1.0
 
 ### Minor Changes
