@@ -1,5 +1,13 @@
 # local-bindings
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [c107ed7]
+- Updated dependencies [6914395]
+  - @build-qube/takeoff-calculator@2.2.0
+
 ## 0.1.0
 
 ### Minor Changes
