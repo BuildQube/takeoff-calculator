@@ -347,6 +347,7 @@ impl TakeoffStateHandler {
 
     if let Some(existing) = self.contours.get(&id) {
       existing.set_contour(input);
+      existing.calculate_scale();
       return;
     }
 
