@@ -1,5 +1,16 @@
 # sample-app
 
+## 0.2.0
+
+### Minor Changes
+
+- 5da4919: Updated Contour inputs to handle unit and scale
+
+### Patch Changes
+
+- Updated dependencies [5da4919]
+  - local-bindings@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes

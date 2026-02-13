@@ -1,5 +1,11 @@
 # @build-qube/takeoff-calculator
 
+## 2.3.0
+
+### Minor Changes
+
+- 5da4919: Updated Contour inputs to handle unit and scale
+
 ## 2.2.0
 
 ### Minor Changes
