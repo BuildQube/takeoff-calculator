@@ -1,3 +1,4 @@
+use crate::contour::{ContourInputJs, ContourWrapper};
 use crate::group::GroupWrapper;
 use crate::measurement::MeasurementWrapper;
 use anyhow::Result;
@@ -16,6 +17,7 @@ pub struct TakeoffStateHandler {
   groups: Arc<DashMap<String, GroupWrapper>>,
   measurements: Arc<DashMap<String, MeasurementWrapper>>,
   scales: Arc<DashMap<String, Scale>>,
+  contours: Arc<DashMap<String, ContourWrapper>>,
 }
 
 #[napi]
@@ -36,6 +38,7 @@ impl TakeoffStateHandler {
       groups: Arc::new(DashMap::new()),
       measurements: Arc::new(DashMap::new()),
       scales: Arc::new(DashMap::new()),
+      contours: Arc::new(DashMap::new()),
     };
 
     if let Some(options) = options {
@@ -298,6 +301,7 @@ impl TakeoffStateHandler {
     let page_id = scale.page_id();
     let res = self.scales.insert(scale.id(), scale);
     self.compute_page(&page_id);
+    self.compute_contours(&page_id);
     res
   }
 
@@ -315,6 +319,7 @@ impl TakeoffStateHandler {
     let scale = self.scales.remove(&scale_id);
     if let Some((_, scale)) = scale {
       self.compute_page(&scale.page_id());
+      self.compute_contours(&scale.page_id());
       return Some(scale);
     }
     None
@@ -333,6 +338,66 @@ impl TakeoffStateHandler {
       .filter(|entry| entry.value().get_scale().is_none())
       .map(|entry| entry.value().clone())
       .collect()
+  }
+
+  #[napi]
+  pub fn upsert_contour(&self, contour: ContourInputJs) {
+    let input: takeoff_core::contour::ContourInput = contour.into();
+    let id = input.id.clone();
+
+    if let Some(existing) = self.contours.get(&id) {
+      existing.set_contour(input);
+      return;
+    }
+
+    let wrapper = ContourWrapper::from_input(input, Arc::new(self.clone()));
+    wrapper.calculate_scale();
+    self.contours.insert(id, wrapper);
+  }
+
+  #[napi]
+  pub fn remove_contour(&self, contour_id: String) -> bool {
+    self.contours.remove(&contour_id).is_some()
+  }
+
+  #[napi]
+  pub fn get_contour(&self, contour_id: String) -> Option<ContourWrapper> {
+    self
+      .contours
+      .get(&contour_id)
+      .map(|entry| entry.value().clone())
+  }
+
+  #[napi]
+  pub fn get_contours_by_page_id(&self, page_id: String) -> Vec<ContourWrapper> {
+    self
+      .contours
+      .iter()
+      .filter(|entry| entry.value().page_id() == page_id)
+      .map(|entry| entry.value().clone())
+      .collect()
+  }
+
+  #[napi]
+  pub fn get_contours_missing_scale(&self) -> Vec<ContourWrapper> {
+    self
+      .contours
+      .iter()
+      .filter(|entry| entry.value().get_scale().is_none())
+      .map(|entry| entry.value().clone())
+      .collect()
+  }
+
+  fn compute_contours(&self, page_id: &str) {
+    let contours: Vec<ContourWrapper> = self
+      .contours
+      .iter()
+      .filter(|entry| entry.value().page_id() == page_id)
+      .map(|entry| entry.value().clone())
+      .collect();
+    for contour in contours {
+      contour.calculate_scale();
+    }
   }
 }
 
@@ -536,5 +601,48 @@ mod tests {
     assert!(group_removed.is_some());
     let group = state.get_group("1".to_string());
     assert!(group.is_none());
+  }
+
+  #[test]
+  fn test_upsert_contour_with_deferred_scale() {
+    use crate::contour::{ContourInputJs, ContourLineInputJs};
+
+    let state = TakeoffStateHandler::new(None);
+    state.upsert_contour(ContourInputJs {
+      id: "c1".to_string(),
+      name: None,
+      page_id: "1".to_string(),
+      lines: vec![ContourLineInputJs {
+        elevation: 10.0,
+        unit: Unit::Feet,
+        points: vec![
+          Point::new(0.0, 0.0),
+          Point::new(100.0, 0.0),
+          Point::new(100.0, 100.0),
+          Point::new(0.0, 100.0),
+        ],
+      }],
+      points_of_interest: vec![],
+    });
+
+    // No scale yet — mesh should be None
+    let contour = state.get_contour("c1".to_string()).unwrap();
+    assert!(contour.get_surface_points().is_none());
+
+    // Add a scale for the page
+    state.upsert_scale(Default {
+      id: "s1".to_string(),
+      page_id: "1".to_string(),
+      scale: ScaleDefinition {
+        pixel_distance: 1.0,
+        real_distance: 1.0,
+        unit: Unit::Feet,
+      },
+    });
+
+    // Now mesh should be available
+    let contour = state.get_contour("c1".to_string()).unwrap();
+    assert!(contour.get_surface_points().is_some());
+    assert_eq!(contour.get_surface_points().unwrap().len(), 4);
   }
 }
