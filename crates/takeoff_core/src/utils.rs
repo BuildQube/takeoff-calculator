@@ -39,6 +39,12 @@ pub fn reposition_measurement_to_centroid(
     .map_err(Into::into)
 }
 
+/// Generate a random id
+#[napi]
+pub fn generate_random_id() -> String {
+  uuid::Uuid::new_v4().to_string()
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;

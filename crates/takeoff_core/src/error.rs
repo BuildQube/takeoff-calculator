@@ -55,6 +55,10 @@ pub enum TakeoffError {
   #[error("all points are collinear; cannot create triangulated surface")]
   SurfaceMeshCollinearPoints,
 
+  /// No scale found for the contour's page.
+  #[error("no scale found for contour {contour_id} on page")]
+  ContourMissingScale { contour_id: String },
+
   // System Errors
   /// A mutex or lock was poisoned (a thread panicked while holding the lock).
   ///
@@ -94,6 +98,13 @@ impl TakeoffError {
     Self::UnknownUnit { unit: unit.into() }
   }
 
+  /// Create a `ContourMissingScale` error.
+  pub fn contour_missing_scale(contour_id: impl Into<String>) -> Self {
+    Self::ContourMissingScale {
+      contour_id: contour_id.into(),
+    }
+  }
+
   /// Create a `PoisonError` error for a poisoned mutex lock.
   pub fn poison_error(resource: impl Into<String>) -> Self {
     Self::PoisonError {
@@ -112,6 +123,9 @@ impl From<TakeoffError> for NapiError {
         NapiError::new(Status::InvalidArg, error.to_string())
       }
       TakeoffError::SurfaceMeshCollinearPoints => {
+        NapiError::new(Status::InvalidArg, error.to_string())
+      }
+      TakeoffError::ContourMissingScale { .. } => {
         NapiError::new(Status::InvalidArg, error.to_string())
       }
       TakeoffError::PoisonError { resource } => NapiError::new(

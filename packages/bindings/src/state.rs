@@ -1,21 +1,32 @@
+use crate::contour::ContourWrapper;
 use crate::group::GroupWrapper;
 use crate::measurement::MeasurementWrapper;
 use anyhow::Result;
 use dashmap::DashMap;
 use napi_derive::napi;
 use std::sync::Arc;
+use takeoff_core::contour::ContourInput;
 use takeoff_core::group::Group;
 use takeoff_core::measurement::Measurement;
 use takeoff_core::page::Page;
 use takeoff_core::scale::Scale;
 use takeoff_core::state::StateOptions;
 #[napi]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct TakeoffStateHandler {
   pages: Arc<DashMap<String, Page>>,
   groups: Arc<DashMap<String, GroupWrapper>>,
   measurements: Arc<DashMap<String, MeasurementWrapper>>,
   scales: Arc<DashMap<String, Scale>>,
+  contours: Arc<DashMap<String, ContourWrapper>>,
+
+  self_arc: Option<Arc<TakeoffStateHandler>>,
+}
+
+impl Default for TakeoffStateHandler {
+  fn default() -> Self {
+    Self::new(None)
+  }
 }
 
 #[napi]
@@ -31,12 +42,15 @@ impl TakeoffStateHandler {
   /// * `State` - The new state.
   #[napi(constructor)]
   pub fn new(options: Option<StateOptions>) -> Self {
-    let state = Self {
+    let mut state = Self {
       pages: Arc::new(DashMap::new()),
       groups: Arc::new(DashMap::new()),
       measurements: Arc::new(DashMap::new()),
       scales: Arc::new(DashMap::new()),
+      contours: Arc::new(DashMap::new()),
+      self_arc: None,
     };
+    state.self_arc = Some(Arc::new(state.clone()));
 
     if let Some(options) = options {
       state.add_initial_options(options);
@@ -84,13 +98,13 @@ impl TakeoffStateHandler {
     for group in options.groups {
       self.groups.insert(
         group.id.clone(),
-        GroupWrapper::new(group, Arc::new(self.clone())),
+        GroupWrapper::new(group, self.self_arc.clone().unwrap()),
       );
     }
     for measurement in options.measurements {
       self.measurements.insert(
         measurement.id().to_string(),
-        MeasurementWrapper::new(measurement, Arc::new(self.clone())),
+        MeasurementWrapper::new(measurement, self.self_arc.clone().unwrap()),
       );
     }
   }
@@ -188,7 +202,7 @@ impl TakeoffStateHandler {
     let group_clone = group.clone();
     self.groups.insert(
       group.id.clone(),
-      GroupWrapper::new(group, Arc::new(self.clone())),
+      GroupWrapper::new(group, self.self_arc.clone().unwrap()),
     );
     Some(group_clone)
   }
@@ -243,7 +257,7 @@ impl TakeoffStateHandler {
 
     let res = self.measurements.insert(
       measurement.id().to_string(),
-      MeasurementWrapper::new(measurement.clone(), Arc::new(self.clone())),
+      MeasurementWrapper::new(measurement.clone(), self.self_arc.clone().unwrap()),
     );
     self.compute_measurement(&id);
     let _ = self.compute_group(measurement.group_id());
@@ -298,6 +312,7 @@ impl TakeoffStateHandler {
     let page_id = scale.page_id();
     let res = self.scales.insert(scale.id(), scale);
     self.compute_page(&page_id);
+    self.compute_contours(&page_id);
     res
   }
 
@@ -315,6 +330,7 @@ impl TakeoffStateHandler {
     let scale = self.scales.remove(&scale_id);
     if let Some((_, scale)) = scale {
       self.compute_page(&scale.page_id());
+      self.compute_contours(&scale.page_id());
       return Some(scale);
     }
     None
@@ -333,6 +349,67 @@ impl TakeoffStateHandler {
       .filter(|entry| entry.value().get_scale().is_none())
       .map(|entry| entry.value().clone())
       .collect()
+  }
+
+  #[napi]
+  pub fn upsert_contour(&self, input: ContourInput) {
+    // let input: takeoff_core::contour::ContourInput = contour.into();
+    let id = input.id.clone();
+
+    if let Some(existing) = self.contours.get(&id) {
+      existing.set_contour(input);
+      existing.calculate_scale();
+      return;
+    }
+    // let state = ;
+    let wrapper = ContourWrapper::from_input(input, self.self_arc.clone().unwrap());
+    wrapper.calculate_scale();
+    self.contours.insert(id, wrapper);
+  }
+
+  #[napi]
+  pub fn remove_contour(&self, contour_id: String) -> bool {
+    self.contours.remove(&contour_id).is_some()
+  }
+
+  #[napi]
+  pub fn get_contour(&self, contour_id: String) -> Option<ContourWrapper> {
+    self
+      .contours
+      .get(&contour_id)
+      .map(|entry| entry.value().clone())
+  }
+
+  #[napi]
+  pub fn get_contours_by_page_id(&self, page_id: String) -> Vec<ContourWrapper> {
+    self
+      .contours
+      .iter()
+      .filter(|entry| entry.value().page_id() == page_id)
+      .map(|entry| entry.value().clone())
+      .collect()
+  }
+
+  #[napi]
+  pub fn get_contours_missing_scale(&self) -> Vec<ContourWrapper> {
+    self
+      .contours
+      .iter()
+      .filter(|entry| entry.value().get_scale().is_none())
+      .map(|entry| entry.value().clone())
+      .collect()
+  }
+
+  fn compute_contours(&self, page_id: &str) {
+    let contours: Vec<ContourWrapper> = self
+      .contours
+      .iter()
+      .filter(|entry| entry.value().page_id() == page_id)
+      .map(|entry| entry.value().clone())
+      .collect();
+    for contour in contours {
+      contour.calculate_scale();
+    }
   }
 }
 
@@ -386,6 +463,7 @@ impl TakeoffStateHandler {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use takeoff_core::contour::ContourLineInput;
   use takeoff_core::coords::Point;
   use takeoff_core::group::MeasurementType;
   use takeoff_core::measurement::Measurement::*;
@@ -536,5 +614,46 @@ mod tests {
     assert!(group_removed.is_some());
     let group = state.get_group("1".to_string());
     assert!(group.is_none());
+  }
+
+  #[test]
+  fn test_upsert_contour_with_deferred_scale() {
+    let state = TakeoffStateHandler::new(None);
+    state.upsert_contour(ContourInput {
+      id: "c1".to_string(),
+      name: None,
+      page_id: "1".to_string(),
+      lines: vec![ContourLineInput {
+        elevation: 10.0,
+        unit: Unit::Feet,
+        points: vec![
+          Point::new(0.0, 0.0),
+          Point::new(100.0, 0.0),
+          Point::new(100.0, 100.0),
+          Point::new(0.0, 100.0),
+        ],
+      }],
+      points_of_interest: vec![],
+    });
+
+    // No scale yet — mesh should be None
+    let contour = state.get_contour("c1".to_string()).unwrap();
+    assert!(contour.get_surface_points().is_none());
+
+    // Add a scale for the page
+    state.upsert_scale(Default {
+      id: "s1".to_string(),
+      page_id: "1".to_string(),
+      scale: ScaleDefinition {
+        pixel_distance: 1.0,
+        real_distance: 1.0,
+        unit: Unit::Feet,
+      },
+    });
+
+    // Now mesh should be available
+    let contour = state.get_contour("c1".to_string()).unwrap();
+    assert!(contour.get_surface_points().is_some());
+    assert_eq!(contour.get_surface_points().unwrap().len(), 4);
   }
 }

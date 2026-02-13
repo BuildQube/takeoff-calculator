@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use napi_derive::napi;
 use takeoff_core::error::TakeoffResult;
@@ -24,7 +24,7 @@ pub struct MeasurementWrapper {
   points: f64,
 
   // #[serde(skip)]
-  state: Arc<TakeoffStateHandler>,
+  state: Weak<TakeoffStateHandler>,
 }
 
 #[napi]
@@ -42,7 +42,7 @@ impl MeasurementWrapper {
       area: Arc::new(Mutex::new(None)),
       length: Arc::new(Mutex::new(None)),
       points: points as f64,
-      state,
+      state: Arc::downgrade(&state),
     }
   }
 
@@ -113,16 +113,19 @@ impl MeasurementWrapper {
     };
     drop(measurement);
 
-    for scale in self.state.get_page_scales(&self.page_id()) {
-      if matches!(scale, Scale::Area { .. }) {
-        if scale.is_in_bounding_box(&geometry) {
-          self.set_scale(scale.clone());
-          return Some(scale);
+    if let Some(state) = self.state.upgrade() {
+      for scale in state.get_page_scales(&self.page_id()) {
+        if matches!(scale, Scale::Area { .. }) {
+          if scale.is_in_bounding_box(&geometry) {
+            self.set_scale(scale.clone());
+            return Some(scale);
+          }
+        } else {
+          current_scale = Some(scale.clone());
         }
-      } else {
-        current_scale = Some(scale.clone());
       }
     }
+
     if let Some(scale) = current_scale {
       self.set_scale(scale.clone());
       return Some(scale);
@@ -182,7 +185,9 @@ impl MeasurementWrapper {
     *lock_mutex(self.length.lock(), "length")? = length?;
 
     // Ignore recomputation errors - they will be handled when group values are accessed
-    let _ = self.state.compute_group(&self.get_group_id());
+    if let Some(state) = self.state.upgrade() {
+      let _ = state.compute_group(&self.get_group_id());
+    }
     Ok(())
   }
 
@@ -253,8 +258,7 @@ mod tests {
     };
 
     assert_eq!(measurement.pixel_area().unwrap(), 5000.0);
-    let measurement_wrapper =
-      MeasurementWrapper::new(measurement, Arc::new(TakeoffStateHandler::default()));
+    let measurement_wrapper = MeasurementWrapper::default(measurement);
     measurement_wrapper.set_scale(Scale::Default {
       id: "1".to_string(),
       page_id: "1".to_string(),

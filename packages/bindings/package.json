@@ -1,88 +1,89 @@
 {
-	"name": "@build-qube/takeoff-calculator",
-	"version": "2.2.0",
-	"description": "Template project for writing node package with napi-rs",
-	"main": "index.js",
-	"types": "index.d.ts",
-	"browser": "browser.js",
-	"repository": {
-		"url": "git+ssh://git@github.com:BuildQube/takeoff-calculator.git",
-		"type": "git"
-	},
-	"license": "MIT",
-	"keywords": [
-		"napi-rs",
-		"NAPI",
-		"N-API",
-		"Rust",
-		"node-addon",
-		"node-addon-api",
-		"takeoff",
-		"quick-maffs"
-	],
-	"files": [
-		"index.d.ts",
-		"index.js",
-		"browser.js"
-	],
-	"napi": {
-		"binaryName": "takeoff-calculator",
-		"constEnum": false,
-		"wasm": {
-			"browser": {
-				"asyncInit": true,
-				"fs": false
-			}
-		},
-		"targets": [
-			"x86_64-apple-darwin",
-			"aarch64-apple-darwin",
-			"x86_64-unknown-linux-gnu",
-			"x86_64-pc-windows-msvc",
-			"x86_64-unknown-linux-musl",
-			"aarch64-unknown-linux-gnu",
-			"armv7-unknown-linux-gnueabihf",
-			"aarch64-unknown-linux-musl",
-			"aarch64-pc-windows-msvc",
-			"wasm32-wasip1-threads"
-		]
-	},
-	"engines": {
-		"node": ">= 10"
-	},
-	"publishConfig": {
-		"registry": "https://registry.npmjs.org/",
-		"access": "public"
-	},
-	"scripts": {
-		"artifacts": "napi artifacts",
-		"create-npm-dirs": "napi create-npm-dirs",
-		"bench": "tsx --tsconfig tsconfig.bench.json benchmark/bench.mts",
-		"build": "napi build --platform --release",
-		"build:wasm": "napi build --platform --target wasm32-wasip1-threads --release",
-		"build:debug": "napi build --platform",
-		"format:toml": "taplo format",
-		"prepublishOnly": "napi prepublish -t npm --no-gh-release",
-		"test": "vitest run",
-		"test:local": "vitest run",
-		"test:watch": "vitest watch",
-		"version": "napi version"
-	},
-	"devDependencies": {
-		"@emnapi/core": "^1.5.0",
-		"@emnapi/runtime": "^1.5.0",
-		"@faker-js/faker": "^10.2.0",
-		"@napi-rs/cli": "^3.5.1",
-		"@napi-rs/wasm-runtime": "^1.1.0",
-		"@taplo/cli": "^0.7.0",
-		"@tybys/wasm-util": "^0.10.0",
-		"chalk": "^5.6.2",
-		"emnapi": "^1.5.0",
-		"npm-run-all2": "^8.0.4",
-		"prettier": "^3.6.2",
-		"tinybench": "^6.0.0",
-		"tsx": "^4.21.0",
-		"typescript": "^5.9.2",
-		"vitest": "^4.0.15"
-	}
+  "name": "@build-qube/takeoff-calculator",
+  "version": "2.2.0",
+  "description": "Template project for writing node package with napi-rs",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "browser": "browser.js",
+  "repository": {
+    "url": "git+ssh://git@github.com:BuildQube/takeoff-calculator.git",
+    "type": "git"
+  },
+  "license": "MIT",
+  "keywords": [
+    "napi-rs",
+    "NAPI",
+    "N-API",
+    "Rust",
+    "node-addon",
+    "node-addon-api",
+    "takeoff",
+    "quick-maffs"
+  ],
+  "files": [
+    "index.d.ts",
+    "index.js",
+    "browser.js"
+  ],
+  "napi": {
+    "binaryName": "takeoff-calculator",
+    "constEnum": false,
+    "wasm": {
+      "browser": {
+        "asyncInit": true,
+        "fs": false
+      }
+    },
+    "targets": [
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "x86_64-pc-windows-msvc",
+      "x86_64-unknown-linux-musl",
+      "aarch64-unknown-linux-gnu",
+      "armv7-unknown-linux-gnueabihf",
+      "aarch64-unknown-linux-musl",
+      "aarch64-pc-windows-msvc",
+      "wasm32-wasip1-threads"
+    ]
+  },
+  "engines": {
+    "node": ">= 10"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "clean": "git clean -xdf node_modules .turbo .next target *.node *.wasm",
+    "create-npm-dirs": "napi create-npm-dirs",
+    "bench": "tsx --tsconfig tsconfig.bench.json benchmark/bench.mts",
+    "build": "napi build --platform --release",
+    "build:wasm": "napi build --platform --target wasm32-wasip1-threads --release",
+    "build:debug": "napi build --platform",
+    "format:toml": "taplo format",
+    "prepublishOnly": "napi prepublish -t npm --no-gh-release",
+    "test": "vitest run",
+    "test:local": "vitest run",
+    "test:watch": "vitest watch",
+    "version": "napi version"
+  },
+  "devDependencies": {
+    "@emnapi/core": "^1.5.0",
+    "@emnapi/runtime": "^1.5.0",
+    "@faker-js/faker": "^10.2.0",
+    "@napi-rs/cli": "^3.5.1",
+    "@napi-rs/wasm-runtime": "^1.1.0",
+    "@taplo/cli": "^0.7.0",
+    "@tybys/wasm-util": "^0.10.0",
+    "chalk": "^5.6.2",
+    "emnapi": "^1.5.0",
+    "npm-run-all2": "^8.0.4",
+    "prettier": "^3.6.2",
+    "tinybench": "^6.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.2",
+    "vitest": "^4.0.15"
+  }
 }
