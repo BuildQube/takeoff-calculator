@@ -125,6 +125,7 @@ impl ContourWrapper {
     }
   }
 
+  /// Create a new contour wrapper from a contour input.
   #[napi(constructor)]
   pub fn new(contour: ContourInputJs) -> Self {
     let input: ContourInput = contour.into();
@@ -199,6 +200,7 @@ impl ContourWrapper {
     Ok(())
   }
 
+  /// Get the id of the contour.
   #[napi(getter)]
   pub fn id(&self) -> String {
     lock_mutex(self.contour.lock(), "contour")
@@ -207,6 +209,7 @@ impl ContourWrapper {
       .clone()
   }
 
+  /// Get the page id of the contour.
   #[napi(getter)]
   pub fn page_id(&self) -> String {
     lock_mutex(self.contour.lock(), "contour")
@@ -215,6 +218,7 @@ impl ContourWrapper {
       .clone()
   }
 
+  /// Get the scale of the contour.
   #[napi(getter)]
   pub fn get_scale(&self) -> Option<Scale> {
     lock_mutex(self.scale.lock(), "scale")
@@ -222,12 +226,14 @@ impl ContourWrapper {
       .and_then(|s| s.clone())
   }
 
+  /// Get the surface points of the contour.
   #[napi]
   pub fn get_surface_points(&self) -> Option<Vec<Point3D>> {
     let mesh_guard = lock_mutex(self.surface_mesh.lock(), "surface_mesh").ok()?;
     mesh_guard.as_ref().map(|mesh| mesh.vertices.clone())
   }
 
+  /// Get the z value at the given x and y coordinates.
   #[napi]
   pub fn get_z_at(&self, x: f64, y: f64) -> Option<f64> {
     let mesh_guard = lock_mutex(self.surface_mesh.lock(), "surface_mesh").ok()?;
@@ -235,6 +241,7 @@ impl ContourWrapper {
     mesh.z_at(x, y)
   }
 
+  /// Get the scatter data of the contour.
   #[napi]
   pub fn get_scatter_data(&self, step: i32) -> Option<Vec<Point3D>> {
     if step <= 0 {
