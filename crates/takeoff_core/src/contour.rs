@@ -2,6 +2,7 @@ use crate::{
   TakeoffError,
   coords::{Point, Point3D},
   error::TakeoffResult,
+  scale::Scale,
   unit::Unit,
 };
 use delaunator::triangulate;
@@ -114,13 +115,52 @@ impl SurfaceMesh {
   }
 }
 
-impl TryFrom<ContourInput> for SurfaceMesh {
-  type Error = TakeoffError;
+impl ContourInput {
+  /// Convert contour elevations to pixel values using the given scale.
+  ///
+  /// Each contour line/POI elevation is converted from its unit to the scale's unit,
+  /// then multiplied by the scale ratio (pixels per real-world unit).
+  ///
+  /// x/y coordinates are already in pixels and remain unchanged.
+  pub fn get_points_with_scale(&self, scale: &Scale) -> TakeoffResult<Vec<Point3D>> {
+    let ratio = scale.ratio()?;
+    let scale_unit = scale.get_unit();
+    let mut points: Vec<Point3D> = Vec::new();
 
-  fn try_from(input: ContourInput) -> Result<Self, Self::Error> {
-    let points = input.get_points_raw();
+    for line in &self.lines {
+      let elevation_in_scale_unit = if line.unit == scale_unit {
+        line.elevation
+      } else {
+        line.unit.convert(line.elevation as f32, &scale_unit) as f64
+      };
+      let elevation_px = elevation_in_scale_unit * ratio;
+      for p in &line.points {
+        points.push(Point3D::new(p.x, p.y, elevation_px));
+      }
+    }
 
-    let vertices = Self::deduplicate_points(&points);
+    for poi in &self.points_of_interest {
+      let elevation_in_scale_unit = if poi.unit == scale_unit {
+        poi.elevation
+      } else {
+        poi.unit.convert(poi.elevation as f32, &scale_unit) as f64
+      };
+      let elevation_px = elevation_in_scale_unit * ratio;
+      points.push(Point3D::new(poi.point.x, poi.point.y, elevation_px));
+    }
+
+    Ok(points)
+  }
+
+  /// Convert contour input to a triangulated 3D surface mesh.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`TakeoffError::SurfaceMeshTooFewPoints`] if there are fewer than 3 points.
+  /// Returns [`TakeoffError::SurfaceMeshCollinearPoints`] if all points are collinear.
+  pub fn to_surface_mesh(&self, scale: &Scale) -> TakeoffResult<SurfaceMesh> {
+    let points = self.get_points_with_scale(scale)?;
+    let vertices = SurfaceMesh::deduplicate_points(&points);
 
     if vertices.len() < 3 {
       return Err(TakeoffError::SurfaceMeshTooFewPoints {
@@ -145,35 +185,7 @@ impl TryFrom<ContourInput> for SurfaceMesh {
       .map(|chunk| [chunk[0] as u32, chunk[1] as u32, chunk[2] as u32])
       .collect();
 
-    Ok(Self {
-      vertices,
-      triangles,
-    })
-  }
-}
-
-impl ContourInput {
-  /// Convert contour input to a triangulated 3D surface mesh.
-  ///
-  /// # Errors
-  ///
-  /// Returns [`TakeoffError::SurfaceMeshTooFewPoints`] if there are fewer than 3 points.
-  /// Returns [`TakeoffError::SurfaceMeshCollinearPoints`] if all points are collinear.
-  pub fn to_surface_mesh(&self) -> TakeoffResult<SurfaceMesh> {
-    SurfaceMesh::try_from(self.clone())
-  }
-
-  pub fn get_points_raw(&self) -> Vec<Point3D> {
-    let mut points: Vec<Point3D> = Vec::new();
-    for line in &self.lines {
-      for p in &line.points {
-        points.push(Point3D::new(p.x, p.y, line.elevation));
-      }
-    }
-    for poi in &self.points_of_interest {
-      points.push(Point3D::new(poi.point.x, poi.point.y, poi.elevation));
-    }
-    points
+    Ok(SurfaceMesh { vertices, triangles })
   }
 
   fn get_geometry_collection(&self) -> GeometryCollection {
@@ -211,7 +223,92 @@ impl ContourInput {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::scale::{Scale, ScaleDefinition};
   use crate::unit::Unit;
+
+  /// 1:1 scale (1 pixel = 1 unit) for tests where scale conversion doesn't matter
+  fn identity_scale() -> Scale {
+    Scale::Default {
+      id: "test-scale".to_string(),
+      page_id: "1".to_string(),
+      scale: ScaleDefinition {
+        pixel_distance: 1.0,
+        real_distance: 1.0,
+        unit: Unit::Feet,
+      },
+    }
+  }
+
+  #[test]
+  fn test_get_points_with_scale() {
+    let input = ContourInput {
+      id: "1".to_string(),
+      name: None,
+      page_id: "1".to_string(),
+      lines: vec![ContourLineInput {
+        elevation: 5.0,
+        unit: Unit::Feet,
+        points: vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)],
+      }],
+      points_of_interest: vec![ContourPointOfInterestInput {
+        elevation: 3.0,
+        unit: Unit::Feet,
+        point: Point::new(5.0, 5.0),
+      }],
+    };
+    let scale = Scale::Default {
+      id: "s1".to_string(),
+      page_id: "1".to_string(),
+      scale: ScaleDefinition {
+        pixel_distance: 100.0,
+        real_distance: 10.0,
+        unit: Unit::Feet,
+      },
+    };
+    // ratio = 100/10 = 10 px/ft
+    // 5.0 ft * 10 = 50.0 px, 3.0 ft * 10 = 30.0 px
+    let points = input.get_points_with_scale(&scale).unwrap();
+    assert_eq!(points.len(), 3);
+    assert!((points[0].z - 50.0).abs() < 1e-6);
+    assert!((points[1].z - 50.0).abs() < 1e-6);
+    assert!((points[2].z - 30.0).abs() < 1e-6);
+    assert!((points[0].x - 0.0).abs() < 1e-6);
+    assert!((points[1].x - 10.0).abs() < 1e-6);
+  }
+
+  #[test]
+  fn test_get_points_with_scale_cross_unit() {
+    let input = ContourInput {
+      id: "1".to_string(),
+      name: None,
+      page_id: "1".to_string(),
+      lines: vec![ContourLineInput {
+        elevation: 1.0,
+        unit: Unit::Meters,
+        points: vec![Point::new(0.0, 0.0)],
+      }],
+      points_of_interest: vec![],
+    };
+    let scale = Scale::Default {
+      id: "s1".to_string(),
+      page_id: "1".to_string(),
+      scale: ScaleDefinition {
+        pixel_distance: 120.0,
+        real_distance: 1.0,
+        unit: Unit::Feet,
+      },
+    };
+    // 1 meter = ~3.28084 feet, ratio = 120 px/ft
+    let points = input.get_points_with_scale(&scale).unwrap();
+    assert_eq!(points.len(), 1);
+    let expected_z = Unit::Meters.convert(1.0, &Unit::Feet) as f64 * 120.0;
+    assert!(
+      (points[0].z - expected_z).abs() < 1.0,
+      "expected ~{}, got {}",
+      expected_z,
+      points[0].z
+    );
+  }
 
   #[test]
   fn test_surface_mesh_success() {
@@ -235,7 +332,7 @@ mod tests {
         unit: Unit::Feet,
       }],
     };
-    let mesh = input.to_surface_mesh().unwrap();
+    let mesh = input.to_surface_mesh(&identity_scale()).unwrap();
     assert_eq!(mesh.vertices.len(), 5);
     assert!(!mesh.triangles.is_empty());
 
@@ -260,7 +357,7 @@ mod tests {
       }],
       points_of_interest: vec![],
     };
-    let err = input.to_surface_mesh().unwrap_err();
+    let err = input.to_surface_mesh(&identity_scale()).unwrap_err();
     assert!(matches!(
       err,
       TakeoffError::SurfaceMeshTooFewPoints { count: 2 }
@@ -284,7 +381,7 @@ mod tests {
       }],
       points_of_interest: vec![],
     };
-    let err = input.to_surface_mesh().unwrap_err();
+    let err = input.to_surface_mesh(&identity_scale()).unwrap_err();
     assert!(matches!(err, TakeoffError::SurfaceMeshCollinearPoints));
   }
 
@@ -312,7 +409,7 @@ mod tests {
         unit: Unit::Feet,
       }],
     };
-    let mesh = input.to_surface_mesh().unwrap();
+    let mesh = input.to_surface_mesh(&identity_scale()).unwrap();
     assert_eq!(mesh.vertices.len(), 4);
   }
 
@@ -338,10 +435,51 @@ mod tests {
         unit: Unit::Feet,
       }],
     };
-    let mesh = input.to_surface_mesh().unwrap();
+    let mesh = input.to_surface_mesh(&identity_scale()).unwrap();
     assert_eq!(mesh.z_at(0.0, 0.0), Some(10.0));
     assert_eq!(mesh.z_at(5.0, 5.0), Some(5.0));
     assert_eq!(mesh.z_at(10.0, 10.0), Some(10.0));
+  }
+
+  #[test]
+  fn test_to_surface_mesh_with_scale() {
+    let input = ContourInput {
+      id: "1".to_string(),
+      name: Some("test".to_string()),
+      page_id: "1".to_string(),
+      lines: vec![ContourLineInput {
+        elevation: 10.0,
+        unit: Unit::Feet,
+        points: vec![
+          Point::new(0.0, 0.0),
+          Point::new(10.0, 0.0),
+          Point::new(10.0, 10.0),
+          Point::new(0.0, 10.0),
+        ],
+      }],
+      points_of_interest: vec![ContourPointOfInterestInput {
+        elevation: 5.0,
+        unit: Unit::Feet,
+        point: Point::new(5.0, 5.0),
+      }],
+    };
+    let scale = Scale::Default {
+      id: "s1".to_string(),
+      page_id: "1".to_string(),
+      scale: ScaleDefinition {
+        pixel_distance: 10.0,
+        real_distance: 1.0,
+        unit: Unit::Feet,
+      },
+    };
+    // ratio = 10px/ft. 10ft * 10 = 100px, 5ft * 10 = 50px
+    let mesh = input.to_surface_mesh(&scale).unwrap();
+    assert_eq!(mesh.vertices.len(), 5);
+    assert!(!mesh.triangles.is_empty());
+    let corner_z = mesh.vertices.iter().find(|v| v.x == 0.0 && v.y == 0.0).unwrap().z;
+    assert!((corner_z - 100.0).abs() < 1e-6);
+    let center_z = mesh.vertices.iter().find(|v| (v.x - 5.0).abs() < 1e-6 && (v.y - 5.0).abs() < 1e-6).unwrap().z;
+    assert!((center_z - 50.0).abs() < 1e-6);
   }
 
   #[test]
