@@ -5,6 +5,7 @@ env:
   MACOSX_DEPLOYMENT_TARGET: "10.13"
   CARGO_INCREMENTAL: "1"
   HUSKY: 0
+  DOCKER_API_VERSION: "1.44"
 
 permissions:
   contents: write
