@@ -138,6 +138,9 @@ impl ContourWrapper {
     let _ = self.rebuild_surface_mesh();
   }
 
+  /// Set the scale of the contour.
+  /// This will rebuild the surface mesh.
+  #[napi]
   pub fn set_scale(&self, scale: Scale) {
     *lock_mutex(self.scale.lock(), "scale").expect("BUG: scale mutex should not be poisoned") =
       Some(scale);
@@ -273,6 +276,21 @@ impl ContourWrapper {
       }
     }
     Some(data)
+  }
+
+  /// Get scaled scatter data of the contour.
+  #[napi]
+  pub fn get_real_world_scatter_data(&self, step: i32) -> Option<Vec<Point3D>> {
+    let scale_guard = lock_mutex(self.scale.lock(), "scale").ok()?;
+    let scale = scale_guard.as_ref()?;
+    let ratio = scale.ratio().ok()?;
+    let scatter_data = self.get_scatter_data(step)?;
+    let scatter_data_scaled = scatter_data
+      .iter()
+      .map(|p| Point3D::new(p.x / ratio, p.y / ratio, p.z / ratio))
+      .collect();
+
+    Some(scatter_data_scaled)
   }
 
   /// Compute raw cut/fill volume (pixel-space values) against a reference surface.

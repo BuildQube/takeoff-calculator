@@ -1,1 +1,1 @@
-export * from "../bindings/index.js";
+export * from '../bindings/index.js';
