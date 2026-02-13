@@ -2,7 +2,7 @@
 /* eslint-disable */
 export declare class ContourWrapper {
   /** Create a new contour wrapper from a contour input. */
-  constructor(contour: ContourInputJs);
+  constructor(contour: ContourInput);
   /**
    * Set the scale of the contour.
    * This will rebuild the surface mesh.
@@ -222,7 +222,7 @@ export declare class TakeoffStateHandler {
    * * `Vec<MeasurementWrapper>` - The measurements that are missing a scale.
    */
   getMeasurementsMissingScale(): Array<MeasurementWrapper>;
-  upsertContour(contour: ContourInputJs): void;
+  upsertContour(input: ContourInput): void;
   removeContour(contourId: string): boolean;
   getContour(contourId: string): ContourWrapper | null;
   getContoursByPageId(pageId: string): Array<ContourWrapper>;
@@ -235,41 +235,58 @@ export declare class VolumetricUnitResult {
   get uncoveredArea(): UnitValue;
 }
 
-export interface ContourInputJs {
-  id: string;
-  name?: string;
-  pageId: string;
-  lines: Array<ContourLineInputJs>;
-  pointsOfInterest: Array<ContourPointOfInterestInputJs>;
-}
-
-export interface ContourLineInputJs {
-  elevation: number;
-  unit: Unit;
-  points: Array<Point>;
-}
-
-export interface ContourPointOfInterestInputJs {
-  elevation: number;
-  unit: Unit;
-  point: Point;
-}
-
 /** Add 100 to the input */
 export declare function plus100(input: number): number;
 
 /** Add 200 to the input */
 export declare function plus200(input: number): number;
+
+/** Input for creating a reference surface from JS/TS. */
+export type ReferenceSurfaceInputJs =
+  | { type: 'Polygon'; points: Array<Point>; elevation: number; unit: Unit }
+  | {
+      type: 'Rectangle';
+      points: [Point, Point];
+      elevation: number;
+      unit: Unit;
+    };
 export declare class UnitValue {
   constructor(value: number, unit: Unit, magnitude: UnitValueItemType);
   display(unit: Unit): string;
   getConvertedValue(to: Unit): number;
 }
 
+export interface ContourInput {
+  id: string;
+  name?: string;
+  pageId: string;
+  /** The lines that make up the contour map */
+  lines: Array<ContourLineInput>;
+  /** The points of interest that are used to create the contour map */
+  pointsOfInterest: Array<ContourPointOfInterestInput>;
+}
+
+export interface ContourLineInput {
+  /** The elevation of the contour line (real-world value) */
+  elevation: number;
+  points: Array<Point>;
+  unit: Unit;
+}
+
+export interface ContourPointOfInterestInput {
+  /** The elevation of the point of interest (real-world value) */
+  elevation: number;
+  point: Point;
+  unit: Unit;
+}
+
 /** Calculate distance between two points */
 export declare function distance(
   points: [Point, Point] | [Point3D, Point3D],
 ): number;
+
+/** Generate a random id */
+export declare function generateRandomId(): string;
 
 /**
  * Get the centroid of a measurement

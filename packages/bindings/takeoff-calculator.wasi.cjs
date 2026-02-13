@@ -134,6 +134,7 @@ module.exports.plus100 = __napiModule.exports.plus100;
 module.exports.plus200 = __napiModule.exports.plus200;
 module.exports.UnitValue = __napiModule.exports.UnitValue;
 module.exports.distance = __napiModule.exports.distance;
+module.exports.generateRandomId = __napiModule.exports.generateRandomId;
 module.exports.getCentroid = __napiModule.exports.getCentroid;
 module.exports.MeasurementType = __napiModule.exports.MeasurementType;
 module.exports.repositionMeasurementToCentroid =

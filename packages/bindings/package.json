@@ -56,6 +56,7 @@
   },
   "scripts": {
     "artifacts": "napi artifacts",
+    "clean": "git clean -xdf node_modules .turbo .next target *.node *.wasm",
     "create-npm-dirs": "napi create-npm-dirs",
     "bench": "tsx --tsconfig tsconfig.bench.json benchmark/bench.mts",
     "build": "napi build --platform --release",

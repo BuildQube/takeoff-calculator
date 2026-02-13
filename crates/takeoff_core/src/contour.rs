@@ -7,8 +7,10 @@ use crate::{
 };
 use delaunator::triangulate;
 use geo::{BoundingRect, Geometry, GeometryCollection, LineString, Point as GeoPoint};
+use napi_derive::napi;
 use serde::{Deserialize, Serialize};
 
+#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContourLineInput {
   /// The elevation of the contour line (real-world value)
@@ -23,6 +25,7 @@ impl ContourLineInput {
   }
 }
 
+#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContourPointOfInterestInput {
   /// The elevation of the point of interest (real-world value)
@@ -31,6 +34,7 @@ pub struct ContourPointOfInterestInput {
   pub unit: Unit,
 }
 
+#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContourInput {
   pub id: String,

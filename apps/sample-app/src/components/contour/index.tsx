@@ -1,13 +1,13 @@
 import { ContourWrapper } from 'local-bindings';
 import { useEffect, useRef } from 'react';
 import Plot from 'react-plotly.js';
-import { TEST_CONTOUR } from './test-data.tsx';
+import { PAGE_ID, TEST_CONTOUR } from './test-data.tsx';
 
 const contour = new ContourWrapper(TEST_CONTOUR);
 contour.setScale({
   type: 'Default',
   id: 'test-scale',
-  pageId: 'test-page',
+  pageId: PAGE_ID,
   scale: {
     pixelDistance: 1,
     realDistance: 20,

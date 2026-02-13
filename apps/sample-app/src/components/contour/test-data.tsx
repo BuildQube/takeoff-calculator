@@ -1,4 +1,10 @@
-import type { ContourInputJs, Measurement } from 'local-bindings';
+import {
+  type ContourInput,
+  generateRandomId,
+  type Measurement,
+} from 'local-bindings';
+
+export const PAGE_ID = 'test-page';
 
 const testData: (Measurement & {
   elevation: number;
@@ -136,8 +142,8 @@ const testData: (Measurement & {
         y: 708.554_687_5,
       },
     ],
-    id: 'Polyline_1770669010209_h2u1b5xa5',
-    pageId: 'page-2',
+    id: generateRandomId(),
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
   },
   {
@@ -237,8 +243,8 @@ const testData: (Measurement & {
         y: 173.738_281_25,
       },
     ],
-    id: 'Polyline_1770669013645_cd694aqop',
-    pageId: 'page-2',
+    id: generateRandomId(),
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
   },
   {
@@ -350,8 +356,8 @@ const testData: (Measurement & {
         y: 174.628_906_25,
       },
     ],
-    id: 'Polyline_1770669033730_sr5b49haa',
-    pageId: 'page-2',
+    id: generateRandomId(),
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
   },
   {
@@ -459,8 +465,8 @@ const testData: (Measurement & {
         y: 701.316_406_25,
       },
     ],
-    id: 'Polyline_1770669036662_zsz01pugh',
-    pageId: 'page-2',
+    id: generateRandomId(),
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
   },
   {
@@ -552,12 +558,12 @@ const testData: (Measurement & {
         y: 194.417_968_75,
       },
     ],
-    id: 'Polyline_1770669044546_bqw9qds17',
-    pageId: 'page-2',
+    id: generateRandomId(),
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
   },
   {
-    elevation: 305,
+    elevation: 303,
     type: 'Polyline',
     points: [
       {
@@ -637,8 +643,8 @@ const testData: (Measurement & {
         y: 723.304_687_5,
       },
     ],
-    id: 'Polyline_1770669047966_rnmgfzse9',
-    pageId: 'page-2',
+    id: generateRandomId(),
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
   },
   {
@@ -686,8 +692,8 @@ const testData: (Measurement & {
         y: 713.777_343_75,
       },
     ],
-    id: 'Polyline_1770669051492_sszl9n9ws',
-    pageId: 'page-2',
+    id: generateRandomId(),
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
   },
   {
@@ -767,8 +773,8 @@ const testData: (Measurement & {
         y: 140.683_593_75,
       },
     ],
-    id: 'Polyline_1770669058962_0qb4urq89',
-    pageId: 'page-2',
+    id: generateRandomId(),
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
   },
   {
@@ -852,8 +858,8 @@ const testData: (Measurement & {
         y: 713.253_906_25,
       },
     ],
-    id: 'Polyline_1770669063313_jkd1bmqzr',
-    pageId: 'page-2',
+    id: generateRandomId(),
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
   },
   {
@@ -929,15 +935,15 @@ const testData: (Measurement & {
         y: 720.843_75,
       },
     ],
-    id: 'Polyline_1770669066184_vwwu4jtd4',
-    pageId: 'page-2',
+    id: generateRandomId(),
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
   },
   {
-    pageId: 'page-2',
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
     type: 'Count',
-    id: 'Rectangle_1770669068650_6o12j1f8u',
+    id: generateRandomId(),
     points: [
       {
         x: 0,
@@ -947,10 +953,10 @@ const testData: (Measurement & {
     elevation: 302,
   },
   {
-    pageId: 'page-2',
+    pageId: PAGE_ID,
     groupId: 'scribble-group-linear',
     type: 'Count',
-    id: 'Rectangle_1770669068650_6o12j1f8u',
+    id: generateRandomId(),
     points: [
       {
         x: 523,
@@ -961,10 +967,10 @@ const testData: (Measurement & {
   },
 ];
 
-export const TEST_CONTOUR: ContourInputJs = {
-  id: 'test-contour',
+export const TEST_CONTOUR: ContourInput = {
+  id: generateRandomId(),
   name: 'Test Contour',
-  pageId: 'test-page',
+  pageId: PAGE_ID,
   pointsOfInterest: testData
     .filter((measure) => measure.type === 'Count')
     .map((measure) => {

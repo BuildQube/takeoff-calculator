@@ -3,7 +3,7 @@ use crate::state::TakeoffStateHandler;
 use crate::utils::lock_mutex;
 use anyhow::Result;
 use napi_derive::napi;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use takeoff_core::error::TakeoffResult;
 use takeoff_core::group::Group;
 use takeoff_core::unit::UnitValue;
@@ -19,7 +19,7 @@ pub struct GroupWrapper {
   count: Arc<Mutex<Option<f64>>>,
 
   // #[serde(skip)]
-  state: Arc<TakeoffStateHandler>,
+  state: Weak<TakeoffStateHandler>,
 }
 
 #[napi]
@@ -27,7 +27,7 @@ impl GroupWrapper {
   pub fn new(group: Group, state: Arc<TakeoffStateHandler>) -> Self {
     let res = Self {
       group,
-      state,
+      state: Arc::downgrade(&state),
       area: Arc::new(Mutex::new(None)),
       length: Arc::new(Mutex::new(None)),
       points: Arc::new(Mutex::new(None)),
@@ -79,26 +79,25 @@ impl GroupWrapper {
   /// - Area calculation fails
   /// - Length calculation fails
   pub fn recompute_measurements(&self) -> Result<()> {
-    let measurements = self
-      .state
-      .get_measurements_by_group_id(self.id().to_string());
+    if let Some(state) = self.state.upgrade() {
+      let measurements = state.get_measurements_by_group_id(self.id().to_string());
 
-    {
-      *lock_mutex(self.area.lock(), "area")? = self.calculate_area(&measurements)?;
+      {
+        *lock_mutex(self.area.lock(), "area")? = self.calculate_area(&measurements)?;
+      }
+
+      {
+        *lock_mutex(self.length.lock(), "length")? = self.calculate_length(&measurements)?;
+      }
+
+      {
+        *lock_mutex(self.points.lock(), "points")? = self.calculate_points(&measurements);
+      }
+
+      {
+        *lock_mutex(self.count.lock(), "count")? = self.calculate_count(&measurements);
+      }
     }
-
-    {
-      *lock_mutex(self.length.lock(), "length")? = self.calculate_length(&measurements)?;
-    }
-
-    {
-      *lock_mutex(self.points.lock(), "points")? = self.calculate_points(&measurements);
-    }
-
-    {
-      *lock_mutex(self.count.lock(), "count")? = self.calculate_count(&measurements);
-    }
-
     Ok(())
   }
 

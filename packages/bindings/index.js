@@ -790,6 +790,7 @@ module.exports.plus100 = nativeBinding.plus100;
 module.exports.plus200 = nativeBinding.plus200;
 module.exports.UnitValue = nativeBinding.UnitValue;
 module.exports.distance = nativeBinding.distance;
+module.exports.generateRandomId = nativeBinding.generateRandomId;
 module.exports.getCentroid = nativeBinding.getCentroid;
 module.exports.MeasurementType = nativeBinding.MeasurementType;
 module.exports.repositionMeasurementToCentroid =

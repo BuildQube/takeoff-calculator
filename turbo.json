@@ -52,6 +52,12 @@
     },
     "typecheck": {
       "inputs": ["**/*.ts", "**/*.tsx"]
+    },
+    "clean": {
+      "cache": false
+    },
+    "//#clean:main": {
+      "cache": false
     }
   }
 }

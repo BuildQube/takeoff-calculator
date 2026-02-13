@@ -1,10 +1,10 @@
 use crate::state::TakeoffStateHandler;
 use crate::utils::lock_mutex;
+use napi::Result;
 use napi_derive::napi;
+use std::sync::Weak;
 use std::sync::{Arc, Mutex};
-use takeoff_core::contour::{
-  ContourInput, ContourLineInput, ContourPointOfInterestInput, SurfaceMesh,
-};
+use takeoff_core::contour::{ContourInput, SurfaceMesh};
 use takeoff_core::coords::{Point, Point3D};
 use takeoff_core::error::TakeoffResult;
 use takeoff_core::scale::Scale;
@@ -13,66 +13,20 @@ use takeoff_core::volume::{ReferenceSurface, ReferenceSurfaceInput, VolumetricRe
 
 // --- NAPI Input Types (JS-facing) ---
 
-#[napi(object)]
-#[derive(Debug, Clone)]
-pub struct ContourLineInputJs {
-  pub elevation: f64,
-  pub unit: Unit,
-  pub points: Vec<Point>,
-}
-
-#[napi(object)]
-#[derive(Debug, Clone)]
-pub struct ContourPointOfInterestInputJs {
-  pub elevation: f64,
-  pub unit: Unit,
-  pub point: Point,
-}
-
-#[napi(object)]
-#[derive(Debug, Clone)]
-pub struct ContourInputJs {
-  pub id: String,
-  pub name: Option<String>,
-  pub page_id: String,
-  pub lines: Vec<ContourLineInputJs>,
-  pub points_of_interest: Vec<ContourPointOfInterestInputJs>,
-}
-
-impl From<ContourLineInputJs> for ContourLineInput {
-  fn from(js: ContourLineInputJs) -> Self {
-    Self {
-      elevation: js.elevation,
-      unit: js.unit,
-      points: js.points,
-    }
-  }
-}
-
-impl From<ContourPointOfInterestInputJs> for ContourPointOfInterestInput {
-  fn from(js: ContourPointOfInterestInputJs) -> Self {
-    Self {
-      elevation: js.elevation,
-      unit: js.unit,
-      point: js.point,
-    }
-  }
-}
-
-impl From<ContourInputJs> for ContourInput {
-  fn from(js: ContourInputJs) -> Self {
-    Self {
-      id: js.id,
-      name: js.name,
-      page_id: js.page_id,
-      lines: js.lines.into_iter().map(|l| l.into()).collect(),
-      points_of_interest: js
-        .points_of_interest
-        .into_iter()
-        .map(|p| p.into())
-        .collect(),
-    }
-  }
+/// Input for creating a reference surface from JS/TS.
+#[napi(discriminant = "type")]
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReferenceSurfaceInputJs {
+  Polygon {
+    points: Vec<Point>,
+    elevation: f64,
+    unit: Unit,
+  },
+  Rectangle {
+    points: (Point, Point),
+    elevation: f64,
+    unit: Unit,
+  },
 }
 
 // --- Volume Result with Units ---
@@ -111,7 +65,7 @@ pub struct ContourWrapper {
   contour: Arc<Mutex<ContourInput>>,
   scale: Arc<Mutex<Option<Scale>>>,
   surface_mesh: Arc<Mutex<Option<SurfaceMesh>>>,
-  state: Arc<TakeoffStateHandler>,
+  state: Weak<TakeoffStateHandler>,
 }
 
 #[napi]
@@ -121,14 +75,14 @@ impl ContourWrapper {
       contour: Arc::new(Mutex::new(contour)),
       scale: Arc::new(Mutex::new(None)),
       surface_mesh: Arc::new(Mutex::new(None)),
-      state,
+      state: Arc::downgrade(&state),
     }
   }
 
   /// Create a new contour wrapper from a contour input.
   #[napi(constructor)]
-  pub fn new(contour: ContourInputJs) -> Self {
-    let input: ContourInput = contour.into();
+  pub fn new(contour: ContourInput) -> Self {
+    let input: ContourInput = contour;
     Self::from_input(input, Arc::new(TakeoffStateHandler::default()))
   }
 
@@ -141,10 +95,10 @@ impl ContourWrapper {
   /// Set the scale of the contour.
   /// This will rebuild the surface mesh.
   #[napi]
-  pub fn set_scale(&self, scale: Scale) {
-    *lock_mutex(self.scale.lock(), "scale").expect("BUG: scale mutex should not be poisoned") =
-      Some(scale);
-    let _ = self.rebuild_surface_mesh();
+  pub fn set_scale(&self, scale: Scale) -> Result<()> {
+    *lock_mutex(self.scale.lock(), "scale")? = Some(scale);
+    self.rebuild_surface_mesh()?;
+    Ok(())
   }
 
   pub fn calculate_scale(&self) -> Option<Scale> {
@@ -163,19 +117,21 @@ impl ContourWrapper {
       ))
     };
 
-    for scale in self.state.get_page_scales(&page_id) {
-      if matches!(scale, Scale::Area { .. }) {
-        if scale.is_in_bounding_box(&geometry) {
-          self.set_scale(scale.clone());
-          return Some(scale);
+    if let Some(state) = self.state.upgrade() {
+      for scale in state.get_page_scales(&page_id) {
+        if matches!(scale, Scale::Area { .. }) {
+          if scale.is_in_bounding_box(&geometry) {
+            let _ = self.set_scale(scale.clone());
+            return Some(scale);
+          }
+        } else {
+          current_scale = Some(scale.clone());
         }
-      } else {
-        current_scale = Some(scale.clone());
       }
-    }
-    if let Some(scale) = current_scale {
-      self.set_scale(scale.clone());
-      return Some(scale);
+      if let Some(scale) = current_scale {
+        let _ = self.set_scale(scale.clone());
+        return Some(scale);
+      }
     }
     None
   }
@@ -380,10 +336,7 @@ mod tests {
 
   #[test]
   fn test_contour_wrapper_no_scale() {
-    let wrapper = ContourWrapper::from_input(
-      test_contour_input(),
-      Arc::new(TakeoffStateHandler::default()),
-    );
+    let wrapper = ContourWrapper::new(test_contour_input());
     assert!(wrapper.get_surface_points().is_none());
     assert!(wrapper.get_scatter_data(10).is_none());
     assert!(wrapper.get_z_at(50.0, 50.0).is_none());
@@ -391,10 +344,7 @@ mod tests {
 
   #[test]
   fn test_contour_wrapper_with_scale() {
-    let wrapper = ContourWrapper::from_input(
-      test_contour_input(),
-      Arc::new(TakeoffStateHandler::default()),
-    );
+    let wrapper = ContourWrapper::new(test_contour_input());
     wrapper.set_scale(test_scale());
     let points = wrapper.get_surface_points();
     assert!(points.is_some());
@@ -406,10 +356,7 @@ mod tests {
 
   #[test]
   fn test_contour_wrapper_scatter_data_with_scale() {
-    let wrapper = ContourWrapper::from_input(
-      test_contour_input(),
-      Arc::new(TakeoffStateHandler::default()),
-    );
+    let wrapper = ContourWrapper::new(test_contour_input());
     wrapper.set_scale(test_scale());
     let scatter = wrapper.get_scatter_data(10);
     assert!(scatter.is_some());

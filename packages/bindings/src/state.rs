@@ -1,23 +1,32 @@
-use crate::contour::{ContourInputJs, ContourWrapper};
+use crate::contour::ContourWrapper;
 use crate::group::GroupWrapper;
 use crate::measurement::MeasurementWrapper;
 use anyhow::Result;
 use dashmap::DashMap;
 use napi_derive::napi;
 use std::sync::Arc;
+use takeoff_core::contour::ContourInput;
 use takeoff_core::group::Group;
 use takeoff_core::measurement::Measurement;
 use takeoff_core::page::Page;
 use takeoff_core::scale::Scale;
 use takeoff_core::state::StateOptions;
 #[napi]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct TakeoffStateHandler {
   pages: Arc<DashMap<String, Page>>,
   groups: Arc<DashMap<String, GroupWrapper>>,
   measurements: Arc<DashMap<String, MeasurementWrapper>>,
   scales: Arc<DashMap<String, Scale>>,
   contours: Arc<DashMap<String, ContourWrapper>>,
+
+  self_arc: Option<Arc<TakeoffStateHandler>>,
+}
+
+impl Default for TakeoffStateHandler {
+  fn default() -> Self {
+    Self::new(None)
+  }
 }
 
 #[napi]
@@ -33,13 +42,15 @@ impl TakeoffStateHandler {
   /// * `State` - The new state.
   #[napi(constructor)]
   pub fn new(options: Option<StateOptions>) -> Self {
-    let state = Self {
+    let mut state = Self {
       pages: Arc::new(DashMap::new()),
       groups: Arc::new(DashMap::new()),
       measurements: Arc::new(DashMap::new()),
       scales: Arc::new(DashMap::new()),
       contours: Arc::new(DashMap::new()),
+      self_arc: None,
     };
+    state.self_arc = Some(Arc::new(state.clone()));
 
     if let Some(options) = options {
       state.add_initial_options(options);
@@ -87,13 +98,13 @@ impl TakeoffStateHandler {
     for group in options.groups {
       self.groups.insert(
         group.id.clone(),
-        GroupWrapper::new(group, Arc::new(self.clone())),
+        GroupWrapper::new(group, self.self_arc.clone().unwrap()),
       );
     }
     for measurement in options.measurements {
       self.measurements.insert(
         measurement.id().to_string(),
-        MeasurementWrapper::new(measurement, Arc::new(self.clone())),
+        MeasurementWrapper::new(measurement, self.self_arc.clone().unwrap()),
       );
     }
   }
@@ -191,7 +202,7 @@ impl TakeoffStateHandler {
     let group_clone = group.clone();
     self.groups.insert(
       group.id.clone(),
-      GroupWrapper::new(group, Arc::new(self.clone())),
+      GroupWrapper::new(group, self.self_arc.clone().unwrap()),
     );
     Some(group_clone)
   }
@@ -246,7 +257,7 @@ impl TakeoffStateHandler {
 
     let res = self.measurements.insert(
       measurement.id().to_string(),
-      MeasurementWrapper::new(measurement.clone(), Arc::new(self.clone())),
+      MeasurementWrapper::new(measurement.clone(), self.self_arc.clone().unwrap()),
     );
     self.compute_measurement(&id);
     let _ = self.compute_group(measurement.group_id());
@@ -341,8 +352,8 @@ impl TakeoffStateHandler {
   }
 
   #[napi]
-  pub fn upsert_contour(&self, contour: ContourInputJs) {
-    let input: takeoff_core::contour::ContourInput = contour.into();
+  pub fn upsert_contour(&self, input: ContourInput) {
+    // let input: takeoff_core::contour::ContourInput = contour.into();
     let id = input.id.clone();
 
     if let Some(existing) = self.contours.get(&id) {
@@ -350,8 +361,8 @@ impl TakeoffStateHandler {
       existing.calculate_scale();
       return;
     }
-
-    let wrapper = ContourWrapper::from_input(input, Arc::new(self.clone()));
+    // let state = ;
+    let wrapper = ContourWrapper::from_input(input, self.self_arc.clone().unwrap());
     wrapper.calculate_scale();
     self.contours.insert(id, wrapper);
   }
@@ -452,6 +463,7 @@ impl TakeoffStateHandler {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use takeoff_core::contour::ContourLineInput;
   use takeoff_core::coords::Point;
   use takeoff_core::group::MeasurementType;
   use takeoff_core::measurement::Measurement::*;
@@ -606,14 +618,12 @@ mod tests {
 
   #[test]
   fn test_upsert_contour_with_deferred_scale() {
-    use crate::contour::{ContourInputJs, ContourLineInputJs};
-
     let state = TakeoffStateHandler::new(None);
-    state.upsert_contour(ContourInputJs {
+    state.upsert_contour(ContourInput {
       id: "c1".to_string(),
       name: None,
       page_id: "1".to_string(),
-      lines: vec![ContourLineInputJs {
+      lines: vec![ContourLineInput {
         elevation: 10.0,
         unit: Unit::Feet,
         points: vec![
