@@ -2,18 +2,18 @@ use crate::{
   TakeoffError,
   coords::{Point, Point3D},
   error::TakeoffResult,
+  unit::Unit,
 };
 use delaunator::triangulate;
 use geo::{BoundingRect, Geometry, GeometryCollection, LineString, Point as GeoPoint};
-use napi_derive::napi;
 use serde::{Deserialize, Serialize};
 
-#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContourLineInput {
-  /// The elevation of the contour line (in pixels)
+  /// The elevation of the contour line (real-world value)
   pub elevation: f64,
   pub points: Vec<Point>,
+  pub unit: Unit,
 }
 
 impl ContourLineInput {
@@ -22,39 +22,14 @@ impl ContourLineInput {
   }
 }
 
-impl From<ContourLineInput> for Vec<Point3D> {
-  fn from(input: ContourLineInput) -> Self {
-    input
-      .points
-      .into_iter()
-      .map(|p| Point3D {
-        x: p.x,
-        y: p.y,
-        z: input.elevation,
-      })
-      .collect()
-  }
-}
-
-#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContourPointOfInterestInput {
-  /// The elevation of the point of interest (in pixels)
+  /// The elevation of the point of interest (real-world value)
   pub elevation: f64,
   pub point: Point,
+  pub unit: Unit,
 }
 
-impl From<ContourPointOfInterestInput> for Point3D {
-  fn from(input: ContourPointOfInterestInput) -> Self {
-    Point3D {
-      x: input.point.x,
-      y: input.point.y,
-      z: input.elevation,
-    }
-  }
-}
-
-#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContourInput {
   pub id: String,
@@ -143,7 +118,7 @@ impl TryFrom<ContourInput> for SurfaceMesh {
   type Error = TakeoffError;
 
   fn try_from(input: ContourInput) -> Result<Self, Self::Error> {
-    let points = input.get_points();
+    let points = input.get_points_raw();
 
     let vertices = Self::deduplicate_points(&points);
 
@@ -188,16 +163,15 @@ impl ContourInput {
     SurfaceMesh::try_from(self.clone())
   }
 
-  pub fn get_points(&self) -> Vec<Point3D> {
+  pub fn get_points_raw(&self) -> Vec<Point3D> {
     let mut points: Vec<Point3D> = Vec::new();
-
-    for line in self.lines.clone() {
-      let line_points: Vec<Point3D> = line.into();
-      points.extend(line_points);
+    for line in &self.lines {
+      for p in &line.points {
+        points.push(Point3D::new(p.x, p.y, line.elevation));
+      }
     }
-    for point_of_interest in self.points_of_interest.clone() {
-      let point_of_interest_point: Point3D = point_of_interest.into();
-      points.push(point_of_interest_point);
+    for poi in &self.points_of_interest {
+      points.push(Point3D::new(poi.point.x, poi.point.y, poi.elevation));
     }
     points
   }
@@ -237,6 +211,7 @@ impl ContourInput {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::unit::Unit;
 
   #[test]
   fn test_surface_mesh_success() {
@@ -252,10 +227,12 @@ mod tests {
           Point::new(10.0, 10.0),
           Point::new(0.0, 10.0),
         ],
+        unit: Unit::Feet,
       }],
       points_of_interest: vec![ContourPointOfInterestInput {
         elevation: 5.0,
         point: Point::new(5.0, 5.0),
+        unit: Unit::Feet,
       }],
     };
     let mesh = input.to_surface_mesh().unwrap();
@@ -279,6 +256,7 @@ mod tests {
       lines: vec![ContourLineInput {
         elevation: 10.0,
         points: vec![Point::new(0.0, 0.0), Point::new(1.0, 0.0)],
+        unit: Unit::Feet,
       }],
       points_of_interest: vec![],
     };
@@ -302,6 +280,7 @@ mod tests {
           Point::new(5.0, 0.0),
           Point::new(10.0, 0.0),
         ],
+        unit: Unit::Feet,
       }],
       points_of_interest: vec![],
     };
@@ -319,15 +298,18 @@ mod tests {
         ContourLineInput {
           elevation: 10.0,
           points: vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)],
+          unit: Unit::Feet,
         },
         ContourLineInput {
           elevation: 20.0,
           points: vec![Point::new(0.0, 0.0), Point::new(0.0, 10.0)],
+          unit: Unit::Feet,
         },
       ],
       points_of_interest: vec![ContourPointOfInterestInput {
         elevation: 5.0,
         point: Point::new(5.0, 5.0),
+        unit: Unit::Feet,
       }],
     };
     let mesh = input.to_surface_mesh().unwrap();
@@ -348,10 +330,12 @@ mod tests {
           Point::new(10.0, 10.0),
           Point::new(0.0, 10.0),
         ],
+        unit: Unit::Feet,
       }],
       points_of_interest: vec![ContourPointOfInterestInput {
         elevation: 5.0,
         point: Point::new(5.0, 5.0),
+        unit: Unit::Feet,
       }],
     };
     let mesh = input.to_surface_mesh().unwrap();
